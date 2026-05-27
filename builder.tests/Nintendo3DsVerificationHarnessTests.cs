@@ -11,7 +11,7 @@ public class Nintendo3DsVerificationHarnessTests {
     /// Verifies the smoke harness runs the builder-owned staging flow and exports a package through the native executor seam.
     /// </summary>
     [Fact]
-    public void RunSmokeTest_whenUsingFakeExecutor_stages_direct_main_menu_scene_and_exports_package() {
+    public void RunSmokeTest_whenUsingFakeExecutor_stages_generated_boot_scene_and_exports_package() {
         TextWriter previousOutput = Console.Out;
         StringWriter output = new StringWriter();
         string workingRootPath = Path.Combine(Path.GetTempPath(), "helengine-3ds-verification-" + Guid.NewGuid().ToString("N"));
@@ -27,7 +27,7 @@ public class Nintendo3DsVerificationHarnessTests {
             Assert.Equal(Path.GetFullPath(Path.Combine(workingRootPath, "out")), nativeBuildExecutor.Workspace.OutputRootPath);
             Assert.True(File.Exists(nativeBuildExecutor.Workspace.ExportPackagePath));
             Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "runtime", "3ds_startup_manifest.bin")));
-            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "DemoDiscMainMenu.hasset")));
+            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "GeneratedBootScene.hasset")));
         } finally {
             Console.SetOut(previousOutput);
             if (Directory.Exists(workingRootPath)) {

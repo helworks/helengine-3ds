@@ -84,7 +84,7 @@ internal static class Nintendo3DsVerificationHarness {
     }
 
     /// <summary>
-    /// Creates one 3DS build request for the startup-manifest smoke run.
+    /// Creates one 3DS build request for the generated boot-scene smoke run.
     /// </summary>
     /// <param name="outputRootPath">Output root that should receive the exported package.</param>
     /// <param name="workingRootPath">Builder-owned working root used for staged 3DS inputs.</param>
@@ -93,15 +93,15 @@ internal static class Nintendo3DsVerificationHarness {
         string generatedCoreRootPath = Path.Combine(workingRootPath, "generated-core");
         PlatformBuildScene[] scenes = [
             new PlatformBuildScene(
-                Nintendo3DsStartupSceneIds.DirectStartupSceneId,
-                "Demo Disc Main Menu",
+                Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
+                "Generated Boot Scene",
                 "scene",
                 [new PlatformBuildPayloadReference(
-                    Nintendo3DsStartupSceneIds.DirectStartupSceneCookedRelativePath,
-                    Nintendo3DsStartupSceneIds.DirectStartupSceneCookedRelativePath)],
+                    Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath,
+                    Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath)],
                 [new KeyValuePair<string, string>(
                     PlatformBuildSceneMetadataKeys.CookedRelativePath,
-                    Nintendo3DsStartupSceneIds.DirectStartupSceneCookedRelativePath)])
+                    Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath)])
         ];
         PlatformBuildManifest manifest = new(
             1,
@@ -110,7 +110,7 @@ internal static class Nintendo3DsVerificationHarness {
             "1.0.0",
             "3ds",
             "1",
-            Nintendo3DsStartupSceneIds.DirectStartupSceneId,
+            Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
             scenes,
             Array.Empty<PlatformBuildAsset>(),
             Array.Empty<PlatformBuildArtifact>(),
@@ -147,7 +147,7 @@ internal static class Nintendo3DsVerificationHarness {
     }
 
     /// <summary>
-    /// Prepares the minimal direct startup-scene payload required by the builder smoke contract.
+    /// Prepares the minimal generated boot-scene payload required by the builder smoke contract.
     /// </summary>
     /// <param name="workingRootPath">Builder-owned working root that contains the staged package source root.</param>
     static void PrepareSmokeBuildInputs(string workingRootPath) {
@@ -159,13 +159,13 @@ internal static class Nintendo3DsVerificationHarness {
         string generatedCoreRootPath = Path.Combine(workingRootPath, "generated-core");
         Directory.CreateDirectory(generatedCoreRootPath);
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "helcpp_config.hpp"), "// smoke");
-        string directStartupScenePath = Path.Combine(
+        string generatedBootScenePath = Path.Combine(
             packageSourceRootPath,
-            Nintendo3DsStartupSceneIds.DirectStartupSceneCookedRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        string directStartupSceneDirectoryPath = Path.GetDirectoryName(directStartupScenePath)
+            Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        string generatedBootSceneDirectoryPath = Path.GetDirectoryName(generatedBootScenePath)
             ?? throw new InvalidOperationException("Unable to resolve the Nintendo 3DS smoke startup-scene directory.");
-        Directory.CreateDirectory(directStartupSceneDirectoryPath);
-        File.WriteAllBytes(directStartupScenePath, [0x44, 0x4D, 0x4D]);
+        Directory.CreateDirectory(generatedBootSceneDirectoryPath);
+        File.WriteAllBytes(generatedBootScenePath, [0x47, 0x42, 0x53]);
     }
 
     /// <summary>
