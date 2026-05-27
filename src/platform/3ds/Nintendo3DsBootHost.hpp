@@ -11,7 +11,9 @@
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
 class Core;
 class CoreInitializationOptions;
+class ICamera;
 class PlatformInfo;
+class RenderTarget;
 class StandardPlatformInputConfiguration;
 #endif
 
@@ -113,6 +115,12 @@ namespace helengine::nintendo3ds {
 
         /// Stores the Nintendo 3DS startup input backend used during startup-scene materialization.
         Nintendo3DsStartupInputBackend* EngineInputBackend;
+
+        /// Stores the top-screen render-target metadata used by camera-bound viewport layout.
+        ::RenderTarget* TopScreenRenderTargetMetadata;
+
+        /// Stores the bottom-screen render-target metadata used by camera-bound viewport layout.
+        ::RenderTarget* BottomScreenRenderTargetMetadata;
 #endif
 
         /// Initializes libctru, citro3d, citro2d, and the screen render targets.
@@ -133,6 +141,14 @@ namespace helengine::nintendo3ds {
 
         /// Loads the packaged startup scene named by the generated runtime manifest through the runtime scene catalog.
         void LoadStartupScene();
+
+        /// Assigns top-screen and bottom-screen render-target metadata to the active scene cameras so viewport-owned layout resolves against the correct 3DS screen size.
+        void AssignScreenRenderTargetsToSceneCameras();
+
+        /// Resolves the screen-local render-target metadata that should drive one camera-bound viewport subtree.
+        /// <param name="camera">Camera whose current screen band should be classified.</param>
+        /// <returns>Render-target metadata that exposes the correct 3DS screen dimensions for the camera.</returns>
+        ::RenderTarget* ResolveScreenRenderTargetForCamera(::ICamera* camera) const;
 
         /// Resolves the runtime scene id that owns one cooked startup-scene asset path.
         /// <param name="cookedRelativePath">Cooked-relative startup-scene asset path from the runtime startup manifest.</param>

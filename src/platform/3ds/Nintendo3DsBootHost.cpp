@@ -1,12 +1,17 @@
 #include "platform/3ds/Nintendo3DsBootHost.hpp"
 
+#include <cstdio>
+#include <exception>
 #include <stdexcept>
 
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
 #include "Asset.hpp"
 #include "Core.hpp"
 #include "CoreInitializationOptions.hpp"
+#include "ICamera.hpp"
+#include "ObjectManager.hpp"
 #include "PlatformInfo.hpp"
+#include "RenderTarget.hpp"
 #include "RuntimeSceneCatalog.hpp"
 #include "RuntimeSceneCatalogEntry.hpp"
 #include "StandardPlatformActionBinding.hpp"
@@ -18,11 +23,30 @@
 #include "runtime/runtime_scene_catalog_manifest.hpp"
 #include "runtime/runtime_standard_platform_input_manifest.hpp"
 #include "runtime/runtime_startup_manifest.hpp"
+#include "runtime/native_exceptions.hpp"
 #endif
 
 namespace helengine::nintendo3ds {
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
     namespace {
+        /// Stores the stable SD-card diagnostic log path used by the Nintendo 3DS boot host.
+        constexpr const char* Nintendo3DsDiagnosticLogPath = "sdmc:/helengine_3ds_last_error.txt";
+
+        /// Writes one startup or frame-loop diagnostic message to the emulated SD card for post-crash inspection.
+        /// <param name="phase">Stable boot-host phase label that identified the failing boundary.</param>
+        /// <param name="message">Best-effort exception message captured from the failing boundary.</param>
+        void WriteDiagnosticLog(const char* phase, const char* message) {
+            std::FILE* file = std::fopen(Nintendo3DsDiagnosticLogPath, "wb");
+            if (file == nullptr) {
+                return;
+            }
+
+            const char* resolvedPhase = phase != nullptr ? phase : "unknown";
+            const char* resolvedMessage = message != nullptr ? message : "Unknown diagnostic message.";
+            std::fprintf(file, "phase=%s\nmessage=%s\n", resolvedPhase, resolvedMessage);
+            std::fclose(file);
+        }
+
         /// Builds one runtime scene catalog from the generated native scene-manifest entries.
         ::RuntimeSceneCatalog* BuildRuntimeSceneCatalog() {
             std::size_t sceneCount = 0;
@@ -57,6 +81,8 @@ namespace helengine::nintendo3ds {
         , EngineRenderManager3D(nullptr)
         , EngineRenderManager2D(nullptr)
         , EngineInputBackend(nullptr)
+        , TopScreenRenderTargetMetadata(nullptr)
+        , BottomScreenRenderTargetMetadata(nullptr)
 #endif
     {
     }
@@ -73,7 +99,19 @@ namespace helengine::nintendo3ds {
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
         try {
             InitializeGeneratedCore();
+        } catch (const std::exception& exception) {
+            WriteDiagnosticLog("generated-core-init", exception.what());
+            HoldOnFailure(GeneratedCoreFailureTopScreenColor, GeneratedCoreFailureBottomScreenColor);
+            ShutdownRenderer();
+            return 1;
+        } catch (const Exception* exception) {
+            WriteDiagnosticLog("generated-core-init", exception != nullptr ? exception->what() : "Unknown managed runtime exception.");
+            delete exception;
+            HoldOnFailure(GeneratedCoreFailureTopScreenColor, GeneratedCoreFailureBottomScreenColor);
+            ShutdownRenderer();
+            return 1;
         } catch (...) {
+            WriteDiagnosticLog("generated-core-init", "Unknown exception.");
             HoldOnFailure(GeneratedCoreFailureTopScreenColor, GeneratedCoreFailureBottomScreenColor);
             ShutdownRenderer();
             return 1;
@@ -81,7 +119,19 @@ namespace helengine::nintendo3ds {
 
         try {
             LoadStartupScene();
+        } catch (const std::exception& exception) {
+            WriteDiagnosticLog("startup-scene-load", exception.what());
+            HoldOnFailure(StartupSceneFailureTopScreenColor, StartupSceneFailureBottomScreenColor);
+            ShutdownRenderer();
+            return 1;
+        } catch (const Exception* exception) {
+            WriteDiagnosticLog("startup-scene-load", exception != nullptr ? exception->what() : "Unknown managed runtime exception.");
+            delete exception;
+            HoldOnFailure(StartupSceneFailureTopScreenColor, StartupSceneFailureBottomScreenColor);
+            ShutdownRenderer();
+            return 1;
         } catch (...) {
+            WriteDiagnosticLog("startup-scene-load", "Unknown exception.");
             HoldOnFailure(StartupSceneFailureTopScreenColor, StartupSceneFailureBottomScreenColor);
             ShutdownRenderer();
             return 1;
@@ -93,10 +143,21 @@ namespace helengine::nintendo3ds {
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
             if (EngineCore != nullptr && EngineRenderManager2D != nullptr) {
                 try {
+                    AssignScreenRenderTargetsToSceneCameras();
                     EngineRenderManager2D->BeginFrame();
                     EngineCore->Update(1.0 / 60.0);
                     EngineRenderManager2D->FlushReleasedTextures();
+                } catch (const std::exception& exception) {
+                    WriteDiagnosticLog("core-update", exception.what());
+                    HoldOnFailure(UpdateFailureTopScreenColor, UpdateFailureBottomScreenColor);
+                    break;
+                } catch (const Exception* exception) {
+                    WriteDiagnosticLog("core-update", exception != nullptr ? exception->what() : "Unknown managed runtime exception.");
+                    delete exception;
+                    HoldOnFailure(UpdateFailureTopScreenColor, UpdateFailureBottomScreenColor);
+                    break;
                 } catch (...) {
+                    WriteDiagnosticLog("core-update", "Unknown exception.");
                     HoldOnFailure(UpdateFailureTopScreenColor, UpdateFailureBottomScreenColor);
                     break;
                 }
@@ -104,7 +165,17 @@ namespace helengine::nintendo3ds {
                 try {
                     EngineCore->Draw();
                     EngineRenderManager2D->Draw();
+                } catch (const std::exception& exception) {
+                    WriteDiagnosticLog("core-draw", exception.what());
+                    HoldOnFailure(DrawFailureTopScreenColor, DrawFailureBottomScreenColor);
+                    break;
+                } catch (const Exception* exception) {
+                    WriteDiagnosticLog("core-draw", exception != nullptr ? exception->what() : "Unknown managed runtime exception.");
+                    delete exception;
+                    HoldOnFailure(DrawFailureTopScreenColor, DrawFailureBottomScreenColor);
+                    break;
                 } catch (...) {
+                    WriteDiagnosticLog("core-draw", "Unknown exception.");
                     HoldOnFailure(DrawFailureTopScreenColor, DrawFailureBottomScreenColor);
                     break;
                 }
@@ -226,6 +297,12 @@ namespace helengine::nintendo3ds {
         const char* runtimePlatformVersion = he_get_runtime_platform_version();
         EnginePlatformInfo = new PlatformInfo("3ds", runtimePlatformVersion);
         EngineRenderManager3D->AddWindow(0, 400, 240);
+        TopScreenRenderTargetMetadata = new RenderTarget();
+        TopScreenRenderTargetMetadata->set_Width(400);
+        TopScreenRenderTargetMetadata->set_Height(240);
+        BottomScreenRenderTargetMetadata = new RenderTarget();
+        BottomScreenRenderTargetMetadata->set_Width(320);
+        BottomScreenRenderTargetMetadata->set_Height(240);
         EngineCore->Initialize(EngineRenderManager3D, EngineRenderManager2D, EngineInputBackend, EnginePlatformInfo, EngineOptions);
 
         ActiveTopScreenColor = GeneratedCoreTopScreenColor;
@@ -244,9 +321,53 @@ namespace helengine::nintendo3ds {
 
         std::string startupSceneId = ResolveStartupSceneId(startupSceneRelativePath);
         EngineCore->get_SceneManager()->LoadScene(startupSceneId, SceneLoadMode::Single);
+        AssignScreenRenderTargetsToSceneCameras();
 
         ActiveTopScreenColor = StartupSceneTopScreenColor;
         ActiveBottomScreenColor = StartupSceneBottomScreenColor;
+    }
+
+    /// Assigns top-screen and bottom-screen render-target metadata to the active scene cameras so viewport-owned layout resolves against the correct 3DS screen size.
+    void Nintendo3DsBootHost::AssignScreenRenderTargetsToSceneCameras() {
+        if (EngineCore == nullptr || EngineCore->get_ObjectManager() == nullptr) {
+            return;
+        } else if (TopScreenRenderTargetMetadata == nullptr || BottomScreenRenderTargetMetadata == nullptr) {
+            return;
+        }
+
+        List<ICamera*>* cameras = EngineCore->get_ObjectManager()->get_Cameras();
+        if (cameras == nullptr) {
+            return;
+        }
+
+        for (int32_t cameraIndex = 0; cameraIndex < cameras->get_Count(); cameraIndex++) {
+            ICamera* camera = (*cameras)[cameraIndex];
+            if (camera == nullptr) {
+                continue;
+            }
+
+            camera->set_RenderTarget(ResolveScreenRenderTargetForCamera(camera));
+        }
+    }
+
+    /// Resolves the screen-local render-target metadata that should drive one camera-bound viewport subtree.
+    /// <param name="camera">Camera whose current screen band should be classified.</param>
+    /// <returns>Render-target metadata that exposes the correct 3DS screen dimensions for the camera.</returns>
+    RenderTarget* Nintendo3DsBootHost::ResolveScreenRenderTargetForCamera(ICamera* camera) const {
+        if (camera == nullptr) {
+            throw std::invalid_argument("Nintendo 3DS camera classification requires one camera.");
+        }
+
+        float4 viewport = camera->get_Viewport();
+        if (viewport.Z <= 1.0f && viewport.W <= 1.0f) {
+            return viewport.Y >= 1.0f
+                ? BottomScreenRenderTargetMetadata
+                : TopScreenRenderTargetMetadata;
+        }
+
+        return viewport.Y >= 240.0f
+            ? BottomScreenRenderTargetMetadata
+            : TopScreenRenderTargetMetadata;
     }
 
     /// Resolves the runtime scene id that owns one cooked startup-scene asset path.
@@ -306,6 +427,10 @@ namespace helengine::nintendo3ds {
         delete EngineCore;
         EngineCore = nullptr;
         EngineOptions = nullptr;
+        delete BottomScreenRenderTargetMetadata;
+        BottomScreenRenderTargetMetadata = nullptr;
+        delete TopScreenRenderTargetMetadata;
+        TopScreenRenderTargetMetadata = nullptr;
 #endif
         C2D_Fini();
         C3D_Fini();

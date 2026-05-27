@@ -1,11 +1,11 @@
 namespace helengine.nintendo3ds.builder.tests;
 
 /// <summary>
-/// Audits the Nintendo 3DS boot host source so generated-core startup and direct startup-scene materialization stay explicitly wired.
+/// Audits the Nintendo 3DS boot host source so generated-core startup and startup-scene materialization stay explicitly wired.
 /// </summary>
 public class Nintendo3DsBootHostSourceAuditTests {
     /// <summary>
-    /// Verifies the Nintendo 3DS boot host initializes generated core with lightweight startup backends before direct startup-scene materialization.
+    /// Verifies the Nintendo 3DS boot host initializes generated core with lightweight startup backends before startup-scene materialization.
     /// </summary>
     [Fact]
     public void Source_whenGeneratedCoreIsEnabled_initializesCoreWithStartupBackends() {
@@ -16,7 +16,10 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("#if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"Core.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"CoreInitializationOptions.hpp\"", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("#include \"ICamera.hpp\"", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("#include \"ObjectManager.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"PlatformInfo.hpp\"", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("#include \"RenderTarget.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"RuntimeSceneCatalog.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"RuntimeSceneCatalogEntry.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"StandardPlatformActionBinding.hpp\"", sourceCode, StringComparison.Ordinal);
@@ -37,6 +40,11 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("EngineInputBackend = new Nintendo3DsStartupInputBackend();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("const char* runtimePlatformVersion = he_get_runtime_platform_version();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EnginePlatformInfo = new PlatformInfo(\"3ds\", runtimePlatformVersion);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("EngineRenderManager3D->AddWindow(0, 400, 240);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("TopScreenRenderTargetMetadata = new RenderTarget();", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("TopScreenRenderTargetMetadata->set_Width(400);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("BottomScreenRenderTargetMetadata = new RenderTarget();", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("BottomScreenRenderTargetMetadata->set_Width(320);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineCore->Initialize(EngineRenderManager3D, EngineRenderManager2D, EngineInputBackend, EnginePlatformInfo, EngineOptions);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("ActiveTopScreenColor = GeneratedCoreTopScreenColor;", sourceCode, StringComparison.Ordinal);
         Assert.Contains("ActiveBottomScreenColor = GeneratedCoreBottomScreenColor;", sourceCode, StringComparison.Ordinal);
@@ -57,6 +65,7 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("const char* startupSceneRelativePath = he_get_runtime_startup_scene_relative_path();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("std::string startupSceneId = ResolveStartupSceneId(startupSceneRelativePath);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineCore->get_SceneManager()->LoadScene(startupSceneId, SceneLoadMode::Single);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("AssignScreenRenderTargetsToSceneCameras();", sourceCode, StringComparison.Ordinal);
         Assert.DoesNotContain("RuntimeSceneLoadService sceneLoadService(", sourceCode, StringComparison.Ordinal);
         Assert.Contains("ActiveTopScreenColor = StartupSceneTopScreenColor;", sourceCode, StringComparison.Ordinal);
         Assert.Contains("ActiveBottomScreenColor = StartupSceneBottomScreenColor;", sourceCode, StringComparison.Ordinal);
@@ -75,7 +84,9 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("#include <string>", headerCode, StringComparison.Ordinal);
         Assert.Contains("class Core;", headerCode, StringComparison.Ordinal);
         Assert.Contains("class CoreInitializationOptions;", headerCode, StringComparison.Ordinal);
+        Assert.Contains("class ICamera;", headerCode, StringComparison.Ordinal);
         Assert.Contains("class PlatformInfo;", headerCode, StringComparison.Ordinal);
+        Assert.Contains("class RenderTarget;", headerCode, StringComparison.Ordinal);
         Assert.Contains("static constexpr u32 GeneratedCoreTopScreenColor", headerCode, StringComparison.Ordinal);
         Assert.Contains("static constexpr u32 GeneratedCoreBottomScreenColor", headerCode, StringComparison.Ordinal);
         Assert.Contains("static constexpr u32 StartupSceneTopScreenColor", headerCode, StringComparison.Ordinal);
@@ -86,9 +97,13 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("Nintendo3DsStartupRenderManager3D* EngineRenderManager3D;", headerCode, StringComparison.Ordinal);
         Assert.Contains("Nintendo3DsStartupRenderManager2D* EngineRenderManager2D;", headerCode, StringComparison.Ordinal);
         Assert.Contains("Nintendo3DsStartupInputBackend* EngineInputBackend;", headerCode, StringComparison.Ordinal);
+        Assert.Contains("::RenderTarget* TopScreenRenderTargetMetadata;", headerCode, StringComparison.Ordinal);
+        Assert.Contains("::RenderTarget* BottomScreenRenderTargetMetadata;", headerCode, StringComparison.Ordinal);
         Assert.Contains("::StandardPlatformInputConfiguration* BuildStandardPlatformInputConfiguration();", headerCode, StringComparison.Ordinal);
         Assert.Contains("void InitializeGeneratedCore();", headerCode, StringComparison.Ordinal);
         Assert.Contains("void LoadStartupScene();", headerCode, StringComparison.Ordinal);
+        Assert.Contains("void AssignScreenRenderTargetsToSceneCameras();", headerCode, StringComparison.Ordinal);
+        Assert.Contains("::RenderTarget* ResolveScreenRenderTargetForCamera(::ICamera* camera) const;", headerCode, StringComparison.Ordinal);
         Assert.Contains("std::string ResolveStartupSceneId(const std::string& cookedRelativePath) const;", headerCode, StringComparison.Ordinal);
     }
 
@@ -102,6 +117,7 @@ public class Nintendo3DsBootHostSourceAuditTests {
         string sourceCode = File.ReadAllText(sourcePath);
 
         Assert.Contains("while (aptMainLoop())", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("AssignScreenRenderTargetsToSceneCameras();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineCore->Update(1.0 / 60.0);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineCore->Draw();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineRenderManager2D->BeginFrame();", sourceCode, StringComparison.Ordinal);
@@ -125,5 +141,7 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("delete EngineRenderManager3D;", sourceCode, StringComparison.Ordinal);
         Assert.Contains("delete EnginePlatformInfo;", sourceCode, StringComparison.Ordinal);
         Assert.Contains("delete EngineCore;", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("delete BottomScreenRenderTargetMetadata;", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("delete TopScreenRenderTargetMetadata;", sourceCode, StringComparison.Ordinal);
     }
 }
