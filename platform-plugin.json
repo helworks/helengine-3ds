@@ -1,0 +1,6 @@
+{
+  "platformId": "3ds",
+  "displayName": "Nintendo 3DS",
+  "builderAssemblyPath": "builder/helengine.3ds.builder.dll",
+  "definitionFactoryType": "helengine.nintendo3ds.builder.Nintendo3DsPlatformDefinitionFactory"
+}

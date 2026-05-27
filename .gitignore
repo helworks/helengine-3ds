@@ -2,3 +2,7 @@ build/
 *.elf
 *.map
 .worktrees/
+builder/bin/
+builder/obj/
+builder.tests/bin/
+builder.tests/obj/
