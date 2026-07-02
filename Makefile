@@ -90,6 +90,7 @@ export DEPSDIR := $(CURDIR)/$(BUILD)
 
 CPPFILES := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
 CPPFILES += $(GENERATED_CORE_CPPFILES)
+PICAFILES := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.v.pica)))
 CFILES := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
 SFILES := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
 BINFILES := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.bin)))
@@ -100,10 +101,14 @@ else
 export LD := $(CXX)
 endif
 
-export OFILES := $(CPPFILES:.cpp=.o) \
+export OFILES_SOURCES := $(CPPFILES:.cpp=.o) \
 	$(CFILES:.c=.o) \
-	$(SFILES:.s=.o) \
-	$(BINFILES:.bin=.o)
+	$(SFILES:.s=.o)
+export OFILES_BIN := $(BINFILES:.bin=.o) \
+	$(PICAFILES:.v.pica=.shbin.o)
+export OFILES := $(OFILES_BIN) $(OFILES_SOURCES)
+export HFILES := $(PICAFILES:.v.pica=_shbin.h) \
+	$(addsuffix .h,$(subst .,_,$(BINFILES)))
 
 export INCLUDE := $(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 	$(foreach dir,$(LIBDIRS),-I$(dir)/include) \
@@ -129,9 +134,15 @@ DEPENDS := $(OFILES:.o=.d)
 
 $(OUTPUT).3dsx: $(OUTPUT).elf $(_3DSXDEPS)
 
+$(OFILES_SOURCES) : $(HFILES)
+
 $(OUTPUT).elf: $(OFILES)
 
 %.o: %.bin
+	@echo $(notdir $<)
+	@$(bin2o)
+
+%.shbin.o %_shbin.h : %.shbin
 	@echo $(notdir $<)
 	@$(bin2o)
 

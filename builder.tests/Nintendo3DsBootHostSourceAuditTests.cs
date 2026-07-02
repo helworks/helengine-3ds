@@ -125,29 +125,32 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("EngineCore->Draw();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineRenderManager2D->BeginFrame();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineRenderManager2D->Draw();", sourceCode, StringComparison.Ordinal);
-        Assert.Contains("EngineRenderManager3D->RenderTopScreen(TopTarget);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("EngineRenderManager3D->RenderTopScreen(TopTarget, topScreenClearColor);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("topScreenClearColor = EngineRenderManager2D->ResolveTopScreenClearColor(topScreenClearColor);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("bottomScreenClearColor = EngineRenderManager2D->ResolveBottomScreenClearColor(bottomScreenClearColor);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("C3D_FrameSplit(0);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("C2D_SceneBegin(TopTarget);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineRenderManager2D->RenderTopScreen();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineRenderManager2D->RenderBottomScreen();", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("C2D_Flush();", sourceCode, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Verifies the mixed citro3d plus citro2d frame path re-prepares citro2d before each screen scene begins so textured 2D draws restore the expected GPU state after the 3D pass.
+    /// Verifies the mixed citro3d plus citro2d frame path splits the frame around each citro2d overlay pass so top-screen 3D survives both screen overlays.
     /// </summary>
     [Fact]
-    public void Source_whenPresentingMixed3dAnd2dFrame_repreparesCitro2dBeforeEachScreenScene() {
+    public void Source_whenPresentingMixed3dAnd2dFrame_splitsFrameBeforeTopAndBottomOverlays() {
         string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         string sourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsBootHost.cpp");
         string sourceCode = File.ReadAllText(sourcePath);
 
-        int topPrepareIndex = sourceCode.IndexOf("C2D_Prepare();", StringComparison.Ordinal);
+        int topSplitIndex = sourceCode.IndexOf("C3D_FrameSplit(0);", StringComparison.Ordinal);
         int topSceneBeginIndex = sourceCode.IndexOf("C2D_SceneBegin(TopTarget);", StringComparison.Ordinal);
-        int bottomPrepareIndex = sourceCode.LastIndexOf("C2D_Prepare();", StringComparison.Ordinal);
+        int bottomSplitIndex = sourceCode.LastIndexOf("C3D_FrameSplit(0);", StringComparison.Ordinal);
         int bottomSceneBeginIndex = sourceCode.IndexOf("C2D_SceneBegin(BottomTarget);", StringComparison.Ordinal);
 
-        Assert.True(topPrepareIndex >= 0 && topPrepareIndex < topSceneBeginIndex, "Expected C2D_Prepare before the top-screen 2D scene begins.");
-        Assert.True(bottomPrepareIndex >= 0 && bottomPrepareIndex < bottomSceneBeginIndex, "Expected C2D_Prepare before the bottom-screen 2D scene begins.");
+        Assert.True(topSplitIndex >= 0 && topSplitIndex < topSceneBeginIndex, "Expected C3D_FrameSplit before the top-screen 2D scene begins.");
+        Assert.True(bottomSplitIndex >= 0 && bottomSplitIndex < bottomSceneBeginIndex, "Expected C3D_FrameSplit before the bottom-screen 2D scene begins.");
     }
 
     /// <summary>

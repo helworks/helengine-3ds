@@ -18,7 +18,7 @@ public class Nintendo3DsGeneratedBootSceneContractTests {
     [Fact]
     public void StartupSceneIds_expose_generated_boot_scene_contract() {
         Assert.Equal("GeneratedBootScene", Nintendo3DsStartupSceneIds.GeneratedBootSceneId);
-        Assert.Equal("cooked/scenes/GeneratedBootScene.hasset", Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath);
+        Assert.Equal("cooked/scenes/generatedbootscene.hasset", Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath);
     }
 
     /// <summary>
@@ -39,10 +39,10 @@ public class Nintendo3DsGeneratedBootSceneContractTests {
             Directory.CreateDirectory(outputRoot);
             File.WriteAllText(Path.Combine(generatedCoreRoot, "helcpp_config.hpp"), "// test");
             File.WriteAllBytes(
-                Path.Combine(packageRoot, "cooked", "scenes", "GeneratedBootScene.hasset"),
+                Path.Combine(packageRoot, "cooked", "scenes", "generatedbootscene.hasset"),
                 [0x47, 0x42, 0x53]);
             File.WriteAllBytes(
-                Path.Combine(packageRoot, "cooked", "scenes", "GeneratedBootScene.hasset"),
+                Path.Combine(packageRoot, "cooked", "scenes", "generatedbootscene.hasset"),
                 [0x47, 0x42, 0x53]);
 
             RecordingDiagnosticReporter diagnosticReporter = new();
@@ -55,8 +55,8 @@ public class Nintendo3DsGeneratedBootSceneContractTests {
                     "GeneratedBootScene",
                     "Generated Boot Scene",
                     "scene",
-                    [new PlatformBuildPayloadReference("cooked/scenes/GeneratedBootScene.hasset", "cooked/scenes/GeneratedBootScene.hasset")],
-                    [new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, "cooked/scenes/GeneratedBootScene.hasset")]),
+                    [new PlatformBuildPayloadReference("cooked/scenes/generatedbootscene.hasset", "cooked/scenes/generatedbootscene.hasset")],
+                    [new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, "cooked/scenes/generatedbootscene.hasset")]),
                 new PlatformBuildScene(
                     Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
                     "Generated Boot Scene",
@@ -118,7 +118,7 @@ public class Nintendo3DsGeneratedBootSceneContractTests {
                 CancellationToken.None);
 
             Assert.NotNull(nativeBuildExecutor.Workspace);
-            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "GeneratedBootScene.hasset")));
+            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "generatedbootscene.hasset")));
         } finally {
             if (Directory.Exists(workingRoot)) {
                 Directory.Delete(workingRoot, true);
@@ -145,7 +145,7 @@ public class Nintendo3DsGeneratedBootSceneContractTests {
             Directory.CreateDirectory(outputRoot);
             File.WriteAllText(Path.Combine(generatedCoreRoot, "helcpp_config.hpp"), "// test");
             File.WriteAllBytes(
-                Path.Combine(packageRoot, "cooked", "scenes", "GeneratedBootScene.hasset"),
+                Path.Combine(packageRoot, "cooked", "scenes", "generatedbootscene.hasset"),
                 [0x47, 0x42, 0x53]);
             File.WriteAllBytes(
                 Path.Combine(packageRoot, "cooked", "engine", "materials", "standard.hasset"),
@@ -219,7 +219,7 @@ public class Nintendo3DsGeneratedBootSceneContractTests {
                 CancellationToken.None);
 
             Assert.True(report.Succeeded);
-            string stagedScenePath = Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "GeneratedBootScene.hasset");
+            string stagedScenePath = Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "generatedbootscene.hasset");
             string stagedMaterialPath = Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "engine", "materials", "standard.hasset");
             Assert.True(File.Exists(stagedScenePath));
             Assert.True(File.Exists(stagedMaterialPath));

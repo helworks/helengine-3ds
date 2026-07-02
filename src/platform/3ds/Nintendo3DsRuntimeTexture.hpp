@@ -7,6 +7,8 @@
 #include <citro3d.h>
 #include <tex3ds.h>
 
+#include <string>
+
 #include "RuntimeTexture.hpp"
 
 class TextureAsset;
@@ -43,6 +45,14 @@ namespace helengine::nintendo3ds {
         /// Gets the padded native texture height used by the Nintendo 3DS GPU upload.
         uint16_t GetPaddedHeight() const;
 
+        /// Returns one deferred diagnostic summary describing representative cooked texels for this runtime texture.
+        const std::string& GetDebugTraceSummary() const;
+
+        /// Returns the deferred diagnostic summary once so later render-time tracing can show what texels were uploaded.
+        /// <param name="summary">Receives the deferred diagnostic summary when available.</param>
+        /// <returns>True when a deferred diagnostic summary was returned.</returns>
+        bool TryTakeDebugTraceSummary(std::string& summary);
+
     private:
         /// Stores the actual authored texture width before GPU padding.
         uint16_t ActualWidth;
@@ -61,6 +71,12 @@ namespace helengine::nintendo3ds {
 
         /// Stores whether the native citro3d texture object currently owns uploaded texture memory.
         bool NativeTextureInitialized;
+
+        /// Stores one deferred diagnostic summary describing representative cooked texels for this runtime texture.
+        std::string DebugTraceSummary;
+
+        /// Stores whether the deferred diagnostic summary has already been consumed by render-time tracing.
+        bool DebugTraceSummaryEmitted;
 
         /// Releases any currently owned Nintendo 3DS native texture upload.
         void Reset();

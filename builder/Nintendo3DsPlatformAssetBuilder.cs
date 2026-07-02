@@ -232,15 +232,7 @@ public sealed class Nintendo3DsPlatformAssetBuilder : IPlatformAssetBuilder {
                 continue;
             }
 
-            string cookedRelativePath = ReadCookedRelativePath(scene);
-            if (!string.Equals(
-                cookedRelativePath,
-                Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath,
-                StringComparison.Ordinal)) {
-                throw new InvalidOperationException(
-                    $"Nintendo 3DS requires startup scene '{Nintendo3DsStartupSceneIds.GeneratedBootSceneId}' to use cooked path '{Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath}'.");
-            }
-
+            ReadCookedRelativePath(scene);
             return scene;
         }
 
@@ -651,7 +643,7 @@ public sealed class Nintendo3DsPlatformAssetBuilder : IPlatformAssetBuilder {
             throw new InvalidOperationException("Nintendo 3DS payload paths must be provided.");
         }
 
-        return CanonicalPackagedAssetPath.ValidateCanonical(path);
+        return CanonicalPackagedAssetPath.Normalize(path);
     }
 
     /// <summary>

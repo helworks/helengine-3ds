@@ -2,6 +2,7 @@
 
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
 
+#include <cstdio>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -44,6 +45,43 @@ namespace helengine::nintendo3ds {
 
         /// Stores the Nintendo 3DS bottom-screen height in pixels.
         constexpr int32_t Nintendo3DsBottomScreenHeight = 240;
+
+        /// Stores the shared SD-card trace path used by Nintendo 3DS renderer diagnostics.
+        constexpr const char* Nintendo3DsRenderTracePath = "sdmc:/helengine_3ds_render_trace.txt";
+
+        /// Stores how many 2D frame trace samples remain before the renderer stops appending diagnostics.
+        int Nintendo3DsRender2DTraceFramesRemaining = 16;
+
+        /// Stores how many detailed 2D draw-call trace lines remain before per-draw diagnostics stop appending.
+        int Nintendo3DsRender2DDetailLinesRemaining = 24;
+
+        /// Appends one diagnostic line to the shared Nintendo 3DS renderer trace file.
+        /// <param name="message">Trace line that describes one 2D renderer boundary.</param>
+        void AppendRenderTrace(const char* message) {
+            if (message == nullptr || Nintendo3DsRender2DTraceFramesRemaining <= 0) {
+                return;
+            }
+
+            std::FILE* file = std::fopen(Nintendo3DsRenderTracePath, "a");
+            if (file == nullptr) {
+                return;
+            }
+
+            std::fputs(message, file);
+            std::fputc('\n', file);
+            std::fclose(file);
+        }
+
+        /// Appends one detailed draw-call diagnostic line while the detail budget remains available.
+        /// <param name="message">Detailed draw-call trace payload.</param>
+        void AppendDetailedRenderTrace(const char* message) {
+            if (message == nullptr || Nintendo3DsRender2DDetailLinesRemaining <= 0) {
+                return;
+            }
+
+            Nintendo3DsRender2DDetailLinesRemaining--;
+            AppendRenderTrace(message);
+        }
     }
 
     /// Creates the Nintendo 3DS startup 2D renderer for startup-scene queue capture and citro2d playback.
@@ -167,6 +205,15 @@ namespace helengine::nintendo3ds {
         }
 
         List<ICamera*>* cameras = core->get_ObjectManager()->get_Cameras();
+        if (Nintendo3DsRender2DTraceFramesRemaining > 0) {
+            char message[256];
+            std::snprintf(
+                message,
+                sizeof(message),
+                "Render2D.Draw: cameraCount=%d",
+                cameras == nullptr ? -1 : cameras->get_Count());
+            AppendRenderTrace(message);
+        }
         for (int32_t cameraIndex = 0; cameraIndex < cameras->get_Count(); cameraIndex++) {
             ICamera* camera = (*cameras)[cameraIndex];
             if (camera == nullptr || camera->get_Parent() == nullptr || !camera->get_Parent()->get_IsHierarchyEnabled()) {
@@ -202,12 +249,27 @@ namespace helengine::nintendo3ds {
 
             IRenderQueue2D* renderQueue = camera->get_RenderQueue2D();
             if (renderQueue == nullptr) {
+                AppendRenderTrace("Render2D.DrawCamera: renderQueue=null");
                 continue;
             }
 
             ActiveScreenTarget = screenTarget;
             ActiveViewportOffsetX = viewportX;
             ActiveViewportOffsetY = viewportY;
+            if (Nintendo3DsRender2DTraceFramesRemaining > 0) {
+                char message[256];
+                std::snprintf(
+                    message,
+                    sizeof(message),
+                    "Render2D.DrawCamera: screen=%s queueCount=%d viewport=(%d,%d,%d,%d)",
+                    screenTarget == Nintendo3DsScreenTarget::Top ? "top" : "bottom",
+                    renderQueue->get_Count(),
+                    viewportX,
+                    viewportY,
+                    viewportWidth,
+                    viewportHeight);
+                AppendRenderTrace(message);
+            }
             renderQueue->VisitOrdered(this);
         }
     }
@@ -276,6 +338,19 @@ namespace helengine::nintendo3ds {
                     RenderRoundedRect(static_cast<IRoundedRectDrawable2D*>(command.Drawable));
                     break;
             }
+        }
+
+        if (Nintendo3DsRender2DTraceFramesRemaining > 0) {
+            char message[256];
+            std::snprintf(
+                message,
+                sizeof(message),
+                "Render2D.Render: commands=%u hasTopClear=%s hasBottomClear=%s",
+                static_cast<unsigned>(DrawCommands.size()),
+                HasTopScreenClearColor ? "true" : "false",
+                HasBottomScreenClearColor ? "true" : "false");
+            AppendRenderTrace(message);
+            Nintendo3DsRender2DTraceFramesRemaining--;
         }
     }
 
@@ -495,17 +570,26 @@ namespace helengine::nintendo3ds {
     /// Renders one captured sprite draw request onto the active top-screen citro2d scene.
     void Nintendo3DsStartupRenderManager2D::RenderSprite(ISpriteDrawable2D* sprite) {
         if (sprite == nullptr || sprite->get_Parent() == nullptr) {
+            AppendRenderTrace("Render2D.RenderSprite: sprite-or-parent-null");
             return;
         }
 
         float4 bounds = ResolveSpriteBounds(sprite);
         if (bounds.Z <= 0.0f || bounds.W <= 0.0f) {
+            AppendRenderTrace("Render2D.RenderSprite: empty-bounds");
             return;
         }
 
         Nintendo3DsRuntimeTexture* runtimeTexture = dynamic_cast<Nintendo3DsRuntimeTexture*>(sprite->get_Texture());
         if (runtimeTexture == nullptr || !runtimeTexture->HasNativeTexture()) {
+            AppendRenderTrace("Render2D.RenderSprite: missing-native-texture");
             return;
+        }
+
+        std::string textureTraceSummary;
+        if (runtimeTexture->TryTakeDebugTraceSummary(textureTraceSummary)) {
+            std::string textureTraceMessage = "Render2D.TextureSample.Sprite: " + textureTraceSummary;
+            AppendDetailedRenderTrace(textureTraceMessage.c_str());
         }
 
         float4 sourceRect = sprite->get_SourceRect();
@@ -537,28 +621,52 @@ namespace helengine::nintendo3ds {
         drawParams.depth = 0.0f;
         drawParams.angle = 0.0f;
 
+        char spriteTraceMessage[256];
+        std::snprintf(
+            spriteTraceMessage,
+            sizeof(spriteTraceMessage),
+            "Render2D.RenderSprite: pos=(%.1f,%.1f) size=(%.1f,%.1f) texture=%dx%d traceBytes=%u",
+            drawParams.pos.x,
+            drawParams.pos.y,
+            drawParams.pos.w,
+            drawParams.pos.h,
+            runtimeTexture->GetActualWidth(),
+            runtimeTexture->GetActualHeight(),
+            static_cast<unsigned>(runtimeTexture->GetDebugTraceSummary().size()));
+        AppendDetailedRenderTrace(spriteTraceMessage);
+
         C2D_DrawImage(image, &drawParams, &tint);
     }
 
     /// Renders one captured text draw request onto the active top-screen citro2d scene.
     void Nintendo3DsStartupRenderManager2D::RenderText(ITextDrawable2D* text) {
         if (text == nullptr || text->get_Parent() == nullptr) {
+            AppendRenderTrace("Render2D.RenderText: text-or-parent-null");
             return;
         }
 
         std::string content = ResolveTextContent(text);
         if (content.empty()) {
+            AppendRenderTrace("Render2D.RenderText: empty-content");
             return;
         }
 
         FontAsset* font = text->get_Font();
         if (font == nullptr) {
+            AppendRenderTrace("Render2D.RenderText: missing-font");
             return;
         }
 
         Nintendo3DsRuntimeTexture* runtimeTexture = dynamic_cast<Nintendo3DsRuntimeTexture*>(font->get_Texture());
         if (runtimeTexture == nullptr || !runtimeTexture->HasNativeTexture()) {
+            AppendRenderTrace("Render2D.RenderText: missing-native-font-texture");
             return;
+        }
+
+        std::string textureTraceSummary;
+        if (runtimeTexture->TryTakeDebugTraceSummary(textureTraceSummary)) {
+            std::string textureTraceMessage = "Render2D.TextureSample.Font: " + textureTraceSummary;
+            AppendDetailedRenderTrace(textureTraceMessage.c_str());
         }
 
         float3 position = text->get_Parent()->get_Position();
@@ -566,6 +674,7 @@ namespace helengine::nintendo3ds {
         const float textureWidth = static_cast<float>(runtimeTexture->GetActualWidth());
         const float textureHeight = static_cast<float>(runtimeTexture->GetActualHeight());
         if (textureWidth <= 0.0f || textureHeight <= 0.0f) {
+            AppendRenderTrace("Render2D.RenderText: invalid-font-texture-size");
             return;
         }
 
@@ -579,6 +688,17 @@ namespace helengine::nintendo3ds {
         float offsetY = 0.0f;
         size_t lineIndex = 0;
         float lineOriginX = renderOriginX + (!lineOffsets.empty() ? lineOffsets[0] : 0.0f);
+        char textTraceMessage[256];
+        std::snprintf(
+            textTraceMessage,
+            sizeof(textTraceMessage),
+            "Render2D.RenderText: pos=(%.1f,%.1f) scale=%.2f contentLength=%u traceBytes=%u",
+            renderOriginX,
+            position.Y + static_cast<float>(ActiveViewportOffsetY),
+            scale,
+            static_cast<unsigned>(content.size()),
+            static_cast<unsigned>(runtimeTexture->GetDebugTraceSummary().size()));
+        AppendDetailedRenderTrace(textTraceMessage);
         C2D_SetTintMode(C2D_TintMult);
         for (char character : content) {
             if (character == '\n') {
@@ -665,6 +785,16 @@ namespace helengine::nintendo3ds {
         const u32 borderColor = ConvertColor(shape->get_BorderColor());
         float viewportOriginX = position.X + static_cast<float>(ActiveViewportOffsetX);
         float viewportOriginY = position.Y + static_cast<float>(ActiveViewportOffsetY);
+        char roundedRectTraceMessage[256];
+        std::snprintf(
+            roundedRectTraceMessage,
+            sizeof(roundedRectTraceMessage),
+            "Render2D.RenderRoundedRect: pos=(%.1f,%.1f) size=(%.1f,%.1f)",
+            viewportOriginX,
+            viewportOriginY,
+            width,
+            height);
+        AppendDetailedRenderTrace(roundedRectTraceMessage);
         C2D_DrawRectSolid(viewportOriginX, viewportOriginY, 0.0f, width, borderThickness, borderColor);
         C2D_DrawRectSolid(viewportOriginX, viewportOriginY + height - borderThickness, 0.0f, width, borderThickness, borderColor);
         C2D_DrawRectSolid(viewportOriginX, viewportOriginY, 0.0f, borderThickness, height, borderColor);

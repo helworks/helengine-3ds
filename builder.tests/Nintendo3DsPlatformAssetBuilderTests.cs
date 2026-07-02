@@ -432,10 +432,10 @@ public class Nintendo3DsPlatformAssetBuilderTests {
     }
 
     /// <summary>
-    /// Verifies builder-owned cooked outputs must already use canonical lowercase packaged paths before RomFS staging begins.
+    /// Verifies builder-owned cooked outputs are normalized into canonical lowercase packaged paths before RomFS staging begins.
     /// </summary>
     [Fact]
-    public async Task BuildAsync_whenCookWorkItemOutputPathUsesUppercase_throws() {
+    public async Task BuildAsync_whenCookWorkItemOutputPathUsesUppercase_normalizesPathAndBuildsSuccessfully() {
         string repositoryRoot = "/mnt/c/dev/helworks/helengine-3ds";
         string workingRoot = Path.Combine(Path.GetTempPath(), "helengine-3ds-build-" + Guid.NewGuid().ToString("N"));
         string outputRoot = Path.Combine(workingRoot, "out");
@@ -457,7 +457,10 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 bitmap.Save(sourceTexturePath, ImageFormat.Png);
             }
 
-            Nintendo3DsPlatformAssetBuilder builder = new(new FakeNintendo3DsNativeBuildExecutor(), repositoryRoot);
+            FakeNintendo3DsNativeBuildExecutor nativeBuildExecutor = new();
+            RecordingDiagnosticReporter diagnosticReporter = new();
+            RecordingProgressReporter progressReporter = new();
+            Nintendo3DsPlatformAssetBuilder builder = new(nativeBuildExecutor, repositoryRoot);
             PlatformBuildScene[] scenes = [
                 new PlatformBuildScene(
                     Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
@@ -526,11 +529,205 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 selectedMediaProfileId: "3dsx-homebrew",
                 selectedStorageProfileId: "romfs-package");
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => builder.BuildAsync(
+            await builder.BuildAsync(
                 request,
-                new RecordingProgressReporter(),
-                new RecordingDiagnosticReporter(),
-                CancellationToken.None));
+                progressReporter,
+                diagnosticReporter,
+                CancellationToken.None);
+
+            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "generatedbootscene.hasset")));
+        } finally {
+            if (Directory.Exists(workingRoot)) {
+                Directory.Delete(workingRoot, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies Nintendo 3DS staging creates the stable generated-boot-scene alias even when the cooked startup scene uses a hashed generated-build path.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_whenGeneratedBootSceneUsesGeneratedBuildPath_stagesStableStartupSceneAlias() {
+        string repositoryRoot = "/mnt/c/dev/helworks/helengine-3ds";
+        string workingRoot = Path.Combine(Path.GetTempPath(), "helengine-3ds-build-" + Guid.NewGuid().ToString("N"));
+        string outputRoot = Path.Combine(workingRoot, "out");
+        string builderWorkingRoot = Path.Combine(workingRoot, "tmp");
+        string packageRoot = Nintendo3DsBuildPathConventions.ResolvePackageSourceRootPath(builderWorkingRoot);
+        string generatedCoreRoot = Path.Combine(workingRoot, "generated-core");
+        string generatedBootSceneRelativePath = "cooked/scenes/.generated-build/3ds/test-build/generatedbootscene_test-build.hasset";
+
+        try {
+            Directory.CreateDirectory(Path.Combine(packageRoot, "cooked", "scenes", ".generated-build", "3ds", "test-build"));
+            Directory.CreateDirectory(generatedCoreRoot);
+            Directory.CreateDirectory(outputRoot);
+            File.WriteAllText(Path.Combine(generatedCoreRoot, "helcpp_config.hpp"), "// test");
+            File.WriteAllBytes(
+                Path.Combine(packageRoot, "cooked", "scenes", ".generated-build", "3ds", "test-build", "generatedbootscene_test-build.hasset"),
+                [0x47, 0x42, 0x53]);
+
+            FakeNintendo3DsNativeBuildExecutor nativeBuildExecutor = new();
+            RecordingDiagnosticReporter diagnosticReporter = new();
+            RecordingProgressReporter progressReporter = new();
+            Nintendo3DsPlatformAssetBuilder builder = new(nativeBuildExecutor, repositoryRoot);
+            PlatformBuildScene[] scenes = [
+                new PlatformBuildScene(
+                    Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
+                    "Generated Boot Scene",
+                    "scene",
+                    [new PlatformBuildPayloadReference(generatedBootSceneRelativePath, generatedBootSceneRelativePath)],
+                    [new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, generatedBootSceneRelativePath)])
+            ];
+
+            PlatformBuildManifest manifest = new(
+                1,
+                "project",
+                "1.0.0",
+                "1.0.0",
+                "3ds",
+                "1",
+                Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
+                scenes,
+                Array.Empty<PlatformBuildAsset>(),
+                Array.Empty<PlatformBuildArtifact>(),
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()));
+
+            PlatformBuildRequest request = new(
+                manifest,
+                [new PlatformBuildTargetVariant("3ds-default", "3ds", "3ds", "3ds-default")],
+                [new PlatformCookProfile(
+                    "3ds-default",
+                    "3DS Default",
+                    new PlatformCookProfileCapabilities(
+                        "3ds",
+                        "raw",
+                        "raw",
+                        "3ds-scene-v1",
+                        PlatformSerializationEndianness.LittleEndian))],
+                outputRoot,
+                builderWorkingRoot,
+                selectedBuildProfileId: "3ds-default",
+                selectedGraphicsProfileId: "3ds-bootstrap",
+                selectedCodegenProfileId: "default",
+                selectedBuildOptionValues: new Dictionary<string, string> {
+                    ["startup-top-screen-color"] = "#FF0000",
+                    ["startup-bottom-screen-color"] = "#0000FF"
+                },
+                selectedGraphicsOptionValues: new Dictionary<string, string>(),
+                selectedCodegenOptionValues: new Dictionary<string, string>(),
+                generatedCoreCppRootPath: generatedCoreRoot,
+                selectedMediaProfileId: "3dsx-homebrew",
+                selectedStorageProfileId: "romfs-package");
+
+            await builder.BuildAsync(
+                request,
+                progressReporter,
+                diagnosticReporter,
+                CancellationToken.None);
+
+            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "generatedbootscene.hasset")));
+        } finally {
+            if (Directory.Exists(workingRoot)) {
+                Directory.Delete(workingRoot, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Verifies Nintendo 3DS staging resolves the stable generated-boot-scene alias from cooked-relative-path metadata rather than assuming the first payload reference is the scene payload.
+    /// </summary>
+    [Fact]
+    public async Task BuildAsync_whenGeneratedBootSceneFirstPayloadIsNotScene_usesCookedRelativePathMetadataForStableStartupSceneAlias() {
+        string repositoryRoot = "/mnt/c/dev/helworks/helengine-3ds";
+        string workingRoot = Path.Combine(Path.GetTempPath(), "helengine-3ds-build-" + Guid.NewGuid().ToString("N"));
+        string outputRoot = Path.Combine(workingRoot, "out");
+        string builderWorkingRoot = Path.Combine(workingRoot, "tmp");
+        string packageRoot = Nintendo3DsBuildPathConventions.ResolvePackageSourceRootPath(builderWorkingRoot);
+        string generatedCoreRoot = Path.Combine(workingRoot, "generated-core");
+        string generatedBootSceneRelativePath = "cooked/scenes/.generated-build/3ds/test-build/generatedbootscene_test-build.hasset";
+        string nonScenePayloadRelativePath = "cooked/animations/generatedbootscene_boot_animation.hasset";
+
+        try {
+            Directory.CreateDirectory(Path.Combine(packageRoot, "cooked", "animations"));
+            Directory.CreateDirectory(Path.Combine(packageRoot, "cooked", "scenes", ".generated-build", "3ds", "test-build"));
+            Directory.CreateDirectory(generatedCoreRoot);
+            Directory.CreateDirectory(outputRoot);
+            File.WriteAllText(Path.Combine(generatedCoreRoot, "helcpp_config.hpp"), "// test");
+            File.WriteAllBytes(
+                Path.Combine(packageRoot, "cooked", "animations", "generatedbootscene_boot_animation.hasset"),
+                [0x08, 0x08, 0x08]);
+            File.WriteAllBytes(
+                Path.Combine(packageRoot, "cooked", "scenes", ".generated-build", "3ds", "test-build", "generatedbootscene_test-build.hasset"),
+                [0x47, 0x42, 0x53]);
+
+            FakeNintendo3DsNativeBuildExecutor nativeBuildExecutor = new();
+            RecordingDiagnosticReporter diagnosticReporter = new();
+            RecordingProgressReporter progressReporter = new();
+            Nintendo3DsPlatformAssetBuilder builder = new(nativeBuildExecutor, repositoryRoot);
+            PlatformBuildScene[] scenes = [
+                new PlatformBuildScene(
+                    Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
+                    "Generated Boot Scene",
+                    "scene",
+                    [
+                        new PlatformBuildPayloadReference(nonScenePayloadRelativePath, nonScenePayloadRelativePath),
+                        new PlatformBuildPayloadReference(generatedBootSceneRelativePath, generatedBootSceneRelativePath)
+                    ],
+                    [new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, generatedBootSceneRelativePath)])
+            ];
+
+            PlatformBuildManifest manifest = new(
+                1,
+                "project",
+                "1.0.0",
+                "1.0.0",
+                "3ds",
+                "1",
+                Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
+                scenes,
+                Array.Empty<PlatformBuildAsset>(),
+                Array.Empty<PlatformBuildArtifact>(),
+                Array.Empty<PlatformBuildCodeModule>(),
+                Array.Empty<PlatformArtifactPlacement>(),
+                new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()));
+
+            PlatformBuildRequest request = new(
+                manifest,
+                [new PlatformBuildTargetVariant("3ds-default", "3ds", "3ds", "3ds-default")],
+                [new PlatformCookProfile(
+                    "3ds-default",
+                    "3DS Default",
+                    new PlatformCookProfileCapabilities(
+                        "3ds",
+                        "raw",
+                        "raw",
+                        "3ds-scene-v1",
+                        PlatformSerializationEndianness.LittleEndian))],
+                outputRoot,
+                builderWorkingRoot,
+                selectedBuildProfileId: "3ds-default",
+                selectedGraphicsProfileId: "3ds-bootstrap",
+                selectedCodegenProfileId: "default",
+                selectedBuildOptionValues: new Dictionary<string, string> {
+                    ["startup-top-screen-color"] = "#FF0000",
+                    ["startup-bottom-screen-color"] = "#0000FF"
+                },
+                selectedGraphicsOptionValues: new Dictionary<string, string>(),
+                selectedCodegenOptionValues: new Dictionary<string, string>(),
+                generatedCoreCppRootPath: generatedCoreRoot,
+                selectedMediaProfileId: "3dsx-homebrew",
+                selectedStorageProfileId: "romfs-package");
+
+            await builder.BuildAsync(
+                request,
+                progressReporter,
+                diagnosticReporter,
+                CancellationToken.None);
+
+            Assert.Equal(
+                [0x47, 0x42, 0x53],
+                File.ReadAllBytes(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "generatedbootscene.hasset")));
         } finally {
             if (Directory.Exists(workingRoot)) {
                 Directory.Delete(workingRoot, recursive: true);

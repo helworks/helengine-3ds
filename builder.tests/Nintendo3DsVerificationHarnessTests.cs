@@ -27,7 +27,7 @@ public class Nintendo3DsVerificationHarnessTests {
             Assert.Equal(Path.GetFullPath(Path.Combine(workingRootPath, "out")), nativeBuildExecutor.Workspace.OutputRootPath);
             Assert.True(File.Exists(nativeBuildExecutor.Workspace.ExportPackagePath));
             Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "runtime", "3ds_startup_manifest.bin")));
-            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "GeneratedBootScene.hasset")));
+            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "generatedbootscene.hasset")));
         } finally {
             Console.SetOut(previousOutput);
             if (Directory.Exists(workingRootPath)) {

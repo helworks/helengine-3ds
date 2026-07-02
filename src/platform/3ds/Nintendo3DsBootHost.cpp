@@ -33,6 +33,39 @@
 #endif
 
 namespace helengine::nintendo3ds {
+    namespace {
+        /// Stores the Nintendo 3DS top-screen pixel height used by the explicit Citro3D render target.
+        constexpr int Nintendo3DsTopScreenPixelHeight = 240;
+
+        /// Stores the Nintendo 3DS top-screen pixel width used by the explicit Citro3D render target.
+        constexpr int Nintendo3DsTopScreenPixelWidth = 400;
+
+        /// Stores the Nintendo 3DS bottom-screen pixel height used by the explicit Citro3D render target.
+        constexpr int Nintendo3DsBottomScreenPixelHeight = 240;
+
+        /// Stores the Nintendo 3DS bottom-screen pixel width used by the explicit Citro3D render target.
+        constexpr int Nintendo3DsBottomScreenPixelWidth = 320;
+
+        /// Stores the display-transfer flags recommended by devkitPro Citro3D samples for the top-screen 3D target.
+        constexpr uint32_t Nintendo3DsTopScreenDisplayTransferFlags =
+            GX_TRANSFER_FLIP_VERT(0)
+            | GX_TRANSFER_OUT_TILED(0)
+            | GX_TRANSFER_RAW_COPY(0)
+            | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8)
+            | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8)
+            | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO);
+
+        /// Stores the display-transfer flags used by the explicit Citro3D bottom-screen target.
+        constexpr uint32_t Nintendo3DsBottomScreenDisplayTransferFlags =
+            GX_TRANSFER_FLIP_VERT(0)
+            | GX_TRANSFER_OUT_TILED(0)
+            | GX_TRANSFER_RAW_COPY(0)
+            | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8)
+            | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8)
+            | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO);
+
+    }
+
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
     namespace {
         /// Stores the stable SD-card diagnostic log path used by the Nintendo 3DS boot host.
@@ -338,8 +371,31 @@ namespace helengine::nintendo3ds {
 
         C2D_Prepare();
 
-        TopTarget = C2D_CreateScreenTarget(GFX_TOP, GFX_LEFT);
-        BottomTarget = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
+        TopTarget = C3D_RenderTargetCreate(
+            Nintendo3DsTopScreenPixelHeight,
+            Nintendo3DsTopScreenPixelWidth,
+            GPU_RB_RGBA8,
+            GPU_RB_DEPTH24_STENCIL8);
+        if (TopTarget != nullptr) {
+            C3D_RenderTargetSetOutput(
+                TopTarget,
+                GFX_TOP,
+                GFX_LEFT,
+                Nintendo3DsTopScreenDisplayTransferFlags);
+        }
+
+        BottomTarget = C3D_RenderTargetCreate(
+            Nintendo3DsBottomScreenPixelHeight,
+            Nintendo3DsBottomScreenPixelWidth,
+            GPU_RB_RGBA8,
+            GPU_RB_DEPTH24_STENCIL8);
+        if (BottomTarget != nullptr) {
+            C3D_RenderTargetSetOutput(
+                BottomTarget,
+                GFX_BOTTOM,
+                GFX_LEFT,
+                Nintendo3DsBottomScreenDisplayTransferFlags);
+        }
 
         if (TopTarget == nullptr) {
             return false;
@@ -362,28 +418,30 @@ namespace helengine::nintendo3ds {
             bottomScreenClearColor = EngineRenderManager2D->ResolveBottomScreenClearColor(bottomScreenClearColor);
         }
 #endif
-        C2D_TargetClear(TopTarget, topScreenClearColor);
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
         if (EngineRenderManager3D != nullptr) {
-            EngineRenderManager3D->RenderTopScreen(TopTarget);
+            EngineRenderManager3D->RenderTopScreen(TopTarget, topScreenClearColor);
         }
+#else
+        C3D_RenderTargetClear(TopTarget, C3D_CLEAR_ALL, topScreenClearColor, 0);
 #endif
-        C2D_Prepare();
+        C3D_FrameSplit(0);
         C2D_SceneBegin(TopTarget);
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
         if (EngineRenderManager2D != nullptr) {
             EngineRenderManager2D->RenderTopScreen();
         }
 #endif
-
+        C2D_Flush();
+        C3D_FrameSplit(0);
         C2D_TargetClear(BottomTarget, bottomScreenClearColor);
-        C2D_Prepare();
         C2D_SceneBegin(BottomTarget);
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
         if (EngineRenderManager2D != nullptr) {
             EngineRenderManager2D->RenderBottomScreen();
         }
 #endif
+        C2D_Flush();
 
         C3D_FrameEnd(0);
     }

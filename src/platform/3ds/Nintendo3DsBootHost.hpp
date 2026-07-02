@@ -21,7 +21,7 @@ namespace helengine::nintendo3ds {
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
     class Nintendo3DsStartupInputBackend;
     class Nintendo3DsStartupRenderManager2D;
-    class Nintendo3DsStartupRenderManager3D;
+    class Nintendo3DsRenderManager3D;
 #endif
 
     /// Owns the first Nintendo 3DS renderer bootstrap and startup-scene frame loop.
@@ -107,8 +107,8 @@ namespace helengine::nintendo3ds {
         /// Stores the generated runtime platform info instance.
         ::PlatformInfo* EnginePlatformInfo;
 
-        /// Stores the lightweight Nintendo 3DS 3D backend used during startup-scene materialization.
-        Nintendo3DsStartupRenderManager3D* EngineRenderManager3D;
+        /// Stores the Nintendo 3DS 3D backend used during startup-scene materialization and queued 3D playback.
+        Nintendo3DsRenderManager3D* EngineRenderManager3D;
 
         /// Stores the lightweight Nintendo 3DS 2D backend used during startup-scene materialization.
         Nintendo3DsStartupRenderManager2D* EngineRenderManager2D;

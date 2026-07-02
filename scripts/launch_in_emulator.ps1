@@ -51,6 +51,12 @@ if ([string]::IsNullOrWhiteSpace($EmulatorPath)) {
     }
 }
 
+$ResolvedEmulatorProcessName = [System.IO.Path]::GetFileNameWithoutExtension($ResolvedEmulatorPath)
+$ExistingProcesses = Get-Process -Name $ResolvedEmulatorProcessName -ErrorAction SilentlyContinue
+if ($null -ne $ExistingProcesses) {
+    $ExistingProcesses | Stop-Process -Force
+}
+
 $process = Start-Process -FilePath $ResolvedEmulatorPath -ArgumentList @($ResolvedArtifactPath) -WorkingDirectory (Split-Path -Path $ResolvedEmulatorPath -Parent) -PassThru
 Write-Output ("ARTIFACT=" + $ResolvedArtifactPath)
 Write-Output ("EMULATOR=" + $ResolvedEmulatorPath)

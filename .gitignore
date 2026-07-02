@@ -7,3 +7,4 @@ builder/obj/
 builder.tests/bin/
 builder.tests/obj/
 tmp/
+tmp_*.log
