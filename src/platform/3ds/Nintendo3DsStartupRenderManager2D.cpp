@@ -12,6 +12,7 @@
 #include "Entity.hpp"
 #include "FontAsset.hpp"
 #include "FontChar.hpp"
+#include "FontInfo.hpp"
 #include "IDrawable2D.hpp"
 #include "ICamera.hpp"
 #include "IRenderQueue2D.hpp"

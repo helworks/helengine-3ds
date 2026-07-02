@@ -23,10 +23,26 @@ $DefaultEmulatorCandidates = @(
     "C:\dev\helworks\emus\Azahar\azahar.exe"
 )
 
+$WildcardEmulatorCandidates = @(
+    "C:\dev\helworks\emus\Lime3DS*\lime3ds-qt.exe",
+    "C:\dev\helworks\emus\lime3ds*\lime3ds-qt.exe",
+    "C:\dev\helworks\emus\Azahar*\azahar.exe",
+    "C:\dev\helworks\emus\azahar*\azahar.exe"
+)
+
 if ([string]::IsNullOrWhiteSpace($EmulatorPath)) {
     $ResolvedEmulatorPath = $DefaultEmulatorCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
     if ($null -eq $ResolvedEmulatorPath) {
-        throw "No Nintendo 3DS emulator was found. Checked: $($DefaultEmulatorCandidates -join ', ')"
+        foreach ($pattern in $WildcardEmulatorCandidates) {
+            $ResolvedEmulatorPath = Get-ChildItem -Path $pattern -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
+            if (-not [string]::IsNullOrWhiteSpace($ResolvedEmulatorPath)) {
+                break
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($ResolvedEmulatorPath)) {
+        throw "No Nintendo 3DS emulator was found. Checked: $($DefaultEmulatorCandidates + $WildcardEmulatorCandidates -join ', ')"
     }
 } else {
     $ResolvedEmulatorPath = [System.IO.Path]::GetFullPath($EmulatorPath)

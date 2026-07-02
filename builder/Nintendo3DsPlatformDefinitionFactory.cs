@@ -8,6 +8,31 @@ namespace helengine.nintendo3ds.builder;
 /// </summary>
 public static class Nintendo3DsPlatformDefinitionFactory {
     /// <summary>
+    /// Generic native numeric type remaps required by C++ platforms that cannot emit System.Numerics runtime types directly.
+    /// </summary>
+    const string NativeNumericTypeRemaps = "System.Numerics.Vector2=helengine.float2;System.Numerics.Vector3=helengine.float3;System.Numerics.Vector4=helengine.float4;System.Numerics.Quaternion=helengine.float4";
+
+    /// <summary>
+    /// Generic generated-math-convention value that instructs the shared C++ generator to emit native column-vector math helpers.
+    /// </summary>
+    const string NativeColumnVectorMathConvention = "native-column-vector";
+
+    /// <summary>
+    /// Generic pointer-size contract forwarded to the shared C++ generator for Nintendo 3DS native output.
+    /// </summary>
+    const string PointerSizeInBytes = "4";
+
+    /// <summary>
+    /// Generic native file-system header contract forwarded to the shared C++ generator so packaged RomFS access routes through the Nintendo 3DS host bridge.
+    /// </summary>
+    const string NativeFileSystemHeader = "\"platform/3ds/Nintendo3DsRomFsFileSystem.hpp\"";
+
+    /// <summary>
+    /// Generic native file-system type contract forwarded to the shared C++ generator so packaged RomFS access routes through the Nintendo 3DS host bridge.
+    /// </summary>
+    const string NativeFileSystemType = "helengine::nintendo3ds::Nintendo3DsRomFsFileSystem";
+
+    /// <summary>
     /// Creates the serialized default Nintendo 3DS texture settings contract used when assets do not provide an explicit Nintendo 3DS override.
     /// </summary>
     /// <returns>Serialized default Nintendo 3DS texture settings.</returns>
@@ -137,7 +162,64 @@ public static class Nintendo3DsPlatformDefinitionFactory {
                     "Nintendo 3DS C# to C++ codegen profile",
                     PlatformCodegenLanguage.Cpp,
                     PlatformSerializationEndianness.LittleEndian,
-                    [])
+                    [
+                        new PlatformSettingDefinition(
+                            "write-conversion-report",
+                            "Write Conversion Report",
+                            PlatformSettingKind.Boolean,
+                            "true",
+                            true,
+                            []),
+                        new PlatformSettingDefinition(
+                            "include-project-defined-preprocessor-symbols",
+                            "Include Project Symbols",
+                            PlatformSettingKind.Boolean,
+                            "false",
+                            true,
+                            []),
+                        new PlatformSettingDefinition(
+                            "load-native-runtime-metadata",
+                            "Load Native Runtime Metadata",
+                            PlatformSettingKind.Boolean,
+                            "true",
+                            true,
+                            []),
+                        new PlatformSettingDefinition(
+                            "generated-math-convention",
+                            "Generated Math Convention",
+                            PlatformSettingKind.Text,
+                            NativeColumnVectorMathConvention,
+                            true,
+                            []),
+                        new PlatformSettingDefinition(
+                            "pointer-size-bytes",
+                            "Pointer Size (Bytes)",
+                            PlatformSettingKind.Text,
+                            PointerSizeInBytes,
+                            true,
+                            []),
+                        new PlatformSettingDefinition(
+                            "type-remaps",
+                            "Type Remaps",
+                            PlatformSettingKind.Text,
+                            NativeNumericTypeRemaps,
+                            true,
+                            []),
+                        new PlatformSettingDefinition(
+                            "native-file-system-header",
+                            "Native File System Header",
+                            PlatformSettingKind.Text,
+                            NativeFileSystemHeader,
+                            true,
+                            []),
+                        new PlatformSettingDefinition(
+                            "native-file-system-type",
+                            "Native File System Type",
+                            PlatformSettingKind.Text,
+                            NativeFileSystemType,
+                            true,
+                            [])
+                    ])
             ],
             [
                 new PlatformStorageProfileDefinition(
@@ -158,7 +240,8 @@ public static class Nintendo3DsPlatformDefinitionFactory {
             new RuntimeGenerationContract(
                 RuntimeMaterialResolutionMode.CookedPlatformOwned,
                 true,
-                PackagedPathPolicy.ContentRelativeOnly),
+                PackagedPathPolicy.ContentRelativeOnly,
+                []),
             assetCookCapabilities: [
                 new PlatformAssetCookCapabilityDefinition(
                     "texture",

@@ -14,6 +14,8 @@
 #include "RenderTarget.hpp"
 #include "RuntimeSceneCatalog.hpp"
 #include "RuntimeSceneCatalogEntry.hpp"
+#include "SceneLoadMode.hpp"
+#include "SceneManager.hpp"
 #include "StandardPlatformActionBinding.hpp"
 #include "StandardPlatformInputConfiguration.hpp"
 #include "platform/3ds/Nintendo3DsPackagedAssetLoader.hpp"

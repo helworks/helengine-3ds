@@ -1,4 +1,6 @@
 using System.Runtime.Versioning;
+using FilesAssetSerializer = helengine.files.AssetSerializer;
+using FilesEngineBinaryHeaderSerializer = helengine.files.EngineBinaryHeaderSerializer;
 
 namespace helengine.nintendo3ds.builder;
 
@@ -47,7 +49,7 @@ public sealed class Nintendo3DsPlatformCookSourceProcessor : INintendo3DsPlatfor
             throw new ArgumentNullException(nameof(settings));
         }
 
-        TextureAsset decodedTextureAsset = SourceTextureDecoder.Decode(sourceAssetPath);
+        TextureAsset decodedTextureAsset = LoadTextureSourceAsset(sourceAssetPath);
         TextureAsset cookedTextureAsset = ApplySettings(decodedTextureAsset, settings);
         cookedTextureAsset.Id = assetId;
         cookedTextureAsset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(assetId);
@@ -74,6 +76,9 @@ public sealed class Nintendo3DsPlatformCookSourceProcessor : INintendo3DsPlatfor
 
         TextureAsset sourceTextureAsset = TryLoadPackagedFontSourceTextureAsset(sourceAssetPath);
         if (sourceTextureAsset == null) {
+            sourceTextureAsset = TryLoadGeneratedFontAtlasTextureAsset(sourceAssetPath);
+        }
+        if (sourceTextureAsset == null) {
             sourceTextureAsset = SourceFontAtlasTextureImporter.Import(sourceAssetPath);
         }
 
@@ -96,6 +101,135 @@ public sealed class Nintendo3DsPlatformCookSourceProcessor : INintendo3DsPlatfor
         using FileStream stream = new(sourceAssetPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         FontAsset fontAsset = global::helengine.files.FontAssetBinarySerializer.Deserialize(stream);
         return fontAsset.SourceTextureAsset;
+    }
+
+    /// <summary>
+    /// Attempts to load one editor-generated atlas texture asset before falling back to raw font import.
+    /// </summary>
+    /// <param name="sourceAssetPath">Candidate generated atlas texture path emitted by the editor build graph.</param>
+    /// <returns>Generated texture asset when the path resolves to one serialized texture or source bitmap; otherwise null.</returns>
+    TextureAsset TryLoadGeneratedFontAtlasTextureAsset(string sourceAssetPath) {
+        if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+            throw new ArgumentException("Source asset path must be provided.", nameof(sourceAssetPath));
+        }
+
+        string extension = Path.GetExtension(sourceAssetPath);
+        if (!string.Equals(extension, ".hetex", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(extension, ".hasset", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(extension, ".png", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(extension, ".tga", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(extension, ".jpg", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(extension, ".jpeg", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(extension, ".bmp", StringComparison.OrdinalIgnoreCase)) {
+            return null;
+        }
+
+        return LoadTextureSourceAsset(sourceAssetPath);
+    }
+
+    /// <summary>
+    /// Loads one serialized texture asset or decodes one authored bitmap path into one uncooked RGBA texture asset.
+    /// </summary>
+    /// <param name="sourceAssetPath">Absolute source texture path emitted by the editor build graph.</param>
+    /// <returns>Resolved uncooked texture asset.</returns>
+    TextureAsset LoadTextureSourceAsset(string sourceAssetPath) {
+        if (string.IsNullOrWhiteSpace(sourceAssetPath)) {
+            throw new ArgumentException("Source texture path must be provided.", nameof(sourceAssetPath));
+        }
+
+        if (TryReadTextureAsset(sourceAssetPath, out TextureAsset textureAsset)) {
+            return textureAsset;
+        }
+
+        return SourceTextureDecoder.Decode(ResolveBitmapSourcePath(sourceAssetPath));
+    }
+
+    /// <summary>
+    /// Attempts to read one serialized texture asset from the supplied source path.
+    /// </summary>
+    /// <param name="sourcePath">Absolute source path that may point at one serialized texture asset.</param>
+    /// <param name="textureAsset">Resolved texture asset when one serialized asset was read successfully.</param>
+    /// <returns>True when the supplied path contains one serialized texture asset; otherwise false.</returns>
+    static bool TryReadTextureAsset(string sourcePath, out TextureAsset textureAsset) {
+        textureAsset = null;
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath)) {
+            return false;
+        }
+
+        string extension = Path.GetExtension(sourcePath);
+        if (!string.Equals(extension, ".hasset", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(extension, ".hetex", StringComparison.OrdinalIgnoreCase)) {
+            return false;
+        }
+
+        using FileStream stream = new(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        EngineBinaryHeader header;
+        try {
+            header = FilesEngineBinaryHeaderSerializer.Read(stream);
+        } catch (InvalidOperationException) {
+            return false;
+        }
+
+        if (header.RecordKind != (ushort)EditorBinaryRecordKind.Asset) {
+            return false;
+        }
+
+        stream.Position = 0;
+        textureAsset = FilesAssetSerializer.Deserialize(stream) as TextureAsset;
+        return textureAsset != null;
+    }
+
+    /// <summary>
+    /// Resolves the bitmap source path that should be imported when one source path is not a serialized texture asset.
+    /// </summary>
+    /// <param name="sourcePath">Absolute source path emitted by the editor work item.</param>
+    /// <returns>Absolute bitmap source path that System.Drawing can load.</returns>
+    static string ResolveBitmapSourcePath(string sourcePath) {
+        if (string.IsNullOrWhiteSpace(sourcePath)) {
+            throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+        }
+
+        if (TryResolveImportSettingsSiblingSourcePath(sourcePath, out string siblingSourcePath)) {
+            return siblingSourcePath;
+        }
+
+        return sourcePath;
+    }
+
+    /// <summary>
+    /// Attempts to resolve the sibling authored image path for one import-settings sidecar.
+    /// </summary>
+    /// <param name="sourcePath">Absolute work-item source path that may point at one `.hasset` import-settings sidecar.</param>
+    /// <param name="siblingSourcePath">Resolved authored image path when one matching sibling exists.</param>
+    /// <returns>True when one sibling source image was found beside the import-settings file; otherwise false.</returns>
+    static bool TryResolveImportSettingsSiblingSourcePath(string sourcePath, out string siblingSourcePath) {
+        siblingSourcePath = string.Empty;
+        if (string.IsNullOrWhiteSpace(sourcePath)) {
+            throw new ArgumentException("Source path must be provided.", nameof(sourcePath));
+        }
+
+        if (!string.Equals(Path.GetExtension(sourcePath), ".hasset", StringComparison.OrdinalIgnoreCase)) {
+            return false;
+        }
+
+        string directoryPath = Path.GetDirectoryName(sourcePath) ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(directoryPath) || !Directory.Exists(directoryPath)) {
+            return false;
+        }
+
+        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(sourcePath);
+        string[] candidateExtensions = [".png", ".tga", ".jpg", ".jpeg", ".bmp"];
+        for (int index = 0; index < candidateExtensions.Length; index++) {
+            string candidatePath = Path.Combine(directoryPath, fileNameWithoutExtension + candidateExtensions[index]);
+            if (!File.Exists(candidatePath)) {
+                continue;
+            }
+
+            siblingSourcePath = candidatePath;
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>
