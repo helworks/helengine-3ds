@@ -5,10 +5,10 @@ namespace helengine.nintendo3ds.builder.tests;
 /// </summary>
 public class Nintendo3DsBootHostSourceAuditTests {
     /// <summary>
-    /// Verifies the Nintendo 3DS boot host initializes generated core with lightweight startup backends before startup-scene materialization.
+    /// Verifies the Nintendo 3DS boot host initializes generated core with the real Nintendo 3DS 3D renderer before startup-scene materialization.
     /// </summary>
     [Fact]
-    public void Source_whenGeneratedCoreIsEnabled_initializesCoreWithStartupBackends() {
+    public void Source_whenGeneratedCoreIsEnabled_initializesCoreWithReal3dRenderer() {
         string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         string sourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsBootHost.cpp");
         string sourceCode = File.ReadAllText(sourcePath);
@@ -35,7 +35,8 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("EngineOptions->set_ContentRootPath(\"romfs:\");", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineOptions->set_SceneCatalog(BuildRuntimeSceneCatalog());", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineOptions->set_StandardPlatformInputConfiguration(BuildStandardPlatformInputConfiguration());", sourceCode, StringComparison.Ordinal);
-        Assert.Contains("EngineRenderManager3D = new Nintendo3DsStartupRenderManager3D();", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("#include \"platform/3ds/Nintendo3DsRenderManager3D.hpp\"", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("EngineRenderManager3D = new Nintendo3DsRenderManager3D();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineRenderManager2D = new Nintendo3DsStartupRenderManager2D();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineInputBackend = new Nintendo3DsStartupInputBackend();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("const char* runtimePlatformVersion = he_get_runtime_platform_version();", sourceCode, StringComparison.Ordinal);
@@ -94,7 +95,8 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("::Core* EngineCore;", headerCode, StringComparison.Ordinal);
         Assert.Contains("::CoreInitializationOptions* EngineOptions;", headerCode, StringComparison.Ordinal);
         Assert.Contains("::PlatformInfo* EnginePlatformInfo;", headerCode, StringComparison.Ordinal);
-        Assert.Contains("Nintendo3DsStartupRenderManager3D* EngineRenderManager3D;", headerCode, StringComparison.Ordinal);
+        Assert.Contains("class Nintendo3DsRenderManager3D;", headerCode, StringComparison.Ordinal);
+        Assert.Contains("Nintendo3DsRenderManager3D* EngineRenderManager3D;", headerCode, StringComparison.Ordinal);
         Assert.Contains("Nintendo3DsStartupRenderManager2D* EngineRenderManager2D;", headerCode, StringComparison.Ordinal);
         Assert.Contains("Nintendo3DsStartupInputBackend* EngineInputBackend;", headerCode, StringComparison.Ordinal);
         Assert.Contains("::RenderTarget* TopScreenRenderTargetMetadata;", headerCode, StringComparison.Ordinal);
@@ -108,10 +110,10 @@ public class Nintendo3DsBootHostSourceAuditTests {
     }
 
     /// <summary>
-    /// Verifies the Nintendo 3DS boot host advances generated core and explicitly traverses the 2D render queue every frame.
+    /// Verifies the Nintendo 3DS boot host advances generated core, captures 3D work, and presents the queued 3D pass before the 2D overlays every frame.
     /// </summary>
     [Fact]
-    public void Source_whenGeneratedCoreIsEnabled_updatesCoreAndDraws2DQueueEveryFrame() {
+    public void Source_whenGeneratedCoreIsEnabled_updatesCoreAndPresentsQueued3dBefore2dOverlays() {
         string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         string sourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsBootHost.cpp");
         string sourceCode = File.ReadAllText(sourcePath);
@@ -119,12 +121,33 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("while (aptMainLoop())", sourceCode, StringComparison.Ordinal);
         Assert.Contains("AssignScreenRenderTargetsToSceneCameras();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineCore->Update(1.0 / 60.0);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("EngineRenderManager3D->BeginFrame();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineCore->Draw();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineRenderManager2D->BeginFrame();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineRenderManager2D->Draw();", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("EngineRenderManager3D->RenderTopScreen(TopTarget);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("topScreenClearColor = EngineRenderManager2D->ResolveTopScreenClearColor(topScreenClearColor);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("bottomScreenClearColor = EngineRenderManager2D->ResolveBottomScreenClearColor(bottomScreenClearColor);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("EngineRenderManager2D->RenderTopScreen();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineRenderManager2D->RenderBottomScreen();", sourceCode, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies the mixed citro3d plus citro2d frame path re-prepares citro2d before each screen scene begins so textured 2D draws restore the expected GPU state after the 3D pass.
+    /// </summary>
+    [Fact]
+    public void Source_whenPresentingMixed3dAnd2dFrame_repreparesCitro2dBeforeEachScreenScene() {
+        string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        string sourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsBootHost.cpp");
+        string sourceCode = File.ReadAllText(sourcePath);
+
+        int topPrepareIndex = sourceCode.IndexOf("C2D_Prepare();", StringComparison.Ordinal);
+        int topSceneBeginIndex = sourceCode.IndexOf("C2D_SceneBegin(TopTarget);", StringComparison.Ordinal);
+        int bottomPrepareIndex = sourceCode.LastIndexOf("C2D_Prepare();", StringComparison.Ordinal);
+        int bottomSceneBeginIndex = sourceCode.IndexOf("C2D_SceneBegin(BottomTarget);", StringComparison.Ordinal);
+
+        Assert.True(topPrepareIndex >= 0 && topPrepareIndex < topSceneBeginIndex, "Expected C2D_Prepare before the top-screen 2D scene begins.");
+        Assert.True(bottomPrepareIndex >= 0 && bottomPrepareIndex < bottomSceneBeginIndex, "Expected C2D_Prepare before the bottom-screen 2D scene begins.");
     }
 
     /// <summary>

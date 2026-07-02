@@ -8,12 +8,15 @@
 #include "Asset.hpp"
 #include "Core.hpp"
 #include "CoreInitializationOptions.hpp"
+#include "EngineBinaryReadContext.hpp"
 #include "ICamera.hpp"
 #include "ObjectManager.hpp"
 #include "PlatformInfo.hpp"
 #include "RenderTarget.hpp"
+#include "RuntimeSceneAssetReferenceResolver.hpp"
 #include "RuntimeSceneCatalog.hpp"
 #include "RuntimeSceneCatalogEntry.hpp"
+#include "RuntimeSceneLoadService.hpp"
 #include "SceneLoadMode.hpp"
 #include "SceneManager.hpp"
 #include "StandardPlatformActionBinding.hpp"
@@ -21,10 +24,11 @@
 #include "platform/3ds/Nintendo3DsPackagedAssetLoader.hpp"
 #include "platform/3ds/Nintendo3DsStartupInputBackend.hpp"
 #include "platform/3ds/Nintendo3DsStartupRenderManager2D.hpp"
-#include "platform/3ds/Nintendo3DsStartupRenderManager3D.hpp"
+#include "platform/3ds/Nintendo3DsRenderManager3D.hpp"
 #include "runtime/runtime_scene_catalog_manifest.hpp"
 #include "runtime/runtime_standard_platform_input_manifest.hpp"
 #include "runtime/runtime_startup_manifest.hpp"
+#include "runtime/native_list.hpp"
 #include "runtime/native_exceptions.hpp"
 #endif
 
@@ -33,6 +37,9 @@ namespace helengine::nintendo3ds {
     namespace {
         /// Stores the stable SD-card diagnostic log path used by the Nintendo 3DS boot host.
         constexpr const char* Nintendo3DsDiagnosticLogPath = "sdmc:/helengine_3ds_last_error.txt";
+
+        /// Stores the stable SD-card live scene-trace log path used by the Nintendo 3DS boot host.
+        constexpr const char* Nintendo3DsSceneTraceLogPath = "sdmc:/helengine_3ds_scene_trace.txt";
 
         /// Writes one startup or frame-loop diagnostic message to the emulated SD card for post-crash inspection.
         /// <param name="phase">Stable boot-host phase label that identified the failing boundary.</param>
@@ -47,6 +54,122 @@ namespace helengine::nintendo3ds {
             const char* resolvedMessage = message != nullptr ? message : "Unknown diagnostic message.";
             std::fprintf(file, "phase=%s\nmessage=%s\n", resolvedPhase, resolvedMessage);
             std::fclose(file);
+        }
+
+        /// Writes one live scene-trace snapshot to the emulated SD card for non-exception runtime debugging.
+        /// <param name="message">Scene-trace payload to persist.</param>
+        void WriteSceneTraceLog(const std::string& message) {
+            std::FILE* file = std::fopen(Nintendo3DsSceneTraceLogPath, "wb");
+            if (file == nullptr) {
+                return;
+            }
+
+            std::fwrite(message.c_str(), 1, message.size(), file);
+            std::fclose(file);
+        }
+
+        /// Appends one labeled diagnostic field when the supplied value contains meaningful content.
+        /// <param name="message">Mutable message buffer that receives the formatted field.</param>
+        /// <param name="label">Stable field label written into the diagnostic output.</param>
+        /// <param name="value">Diagnostic value to append when non-empty.</param>
+        void AppendDiagnosticField(std::string& message, const char* label, const std::string& value) {
+            if (label == nullptr || label[0] == '\0' || value.empty()) {
+                return;
+            }
+
+            message += "\n";
+            message += label;
+            message += "=";
+            message += value;
+        }
+
+        /// Builds one expanded diagnostic message that overlays the managed runtime read context and scene-load trace state.
+        /// <param name="baseMessage">Primary exception message captured by the 3DS boot host catch boundary.</param>
+        /// <param name="engineCore">Generated-core instance that may expose additional runtime diagnostics.</param>
+        /// <returns>Expanded diagnostic message with managed runtime context appended when available.</returns>
+        std::string BuildManagedRuntimeDiagnosticMessage(const char* baseMessage, ::Core* engineCore) {
+            std::string message = baseMessage != nullptr ? baseMessage : "Unknown diagnostic message.";
+            AppendDiagnosticField(message, "binaryAssetPath", ::EngineBinaryReadContext::get_CurrentAssetPath());
+            AppendDiagnosticField(message, "binaryReadStage", ::EngineBinaryReadContext::get_CurrentReadStage());
+            AppendDiagnosticField(message, "binaryLastCheckpoint", ::EngineBinaryReadContext::get_LastCheckpoint());
+            if (engineCore == nullptr) {
+                return message;
+            }
+
+            ::RuntimeSceneLoadService* sceneLoadService = engineCore->get_SceneLoadService();
+            if (sceneLoadService != nullptr) {
+                AppendDiagnosticField(message, "sceneLoadStage", sceneLoadService->get_LastTraceStage());
+                AppendDiagnosticField(message, "sceneLoadComponent", sceneLoadService->get_LastTraceComponentTypeId());
+                AppendDiagnosticField(message, "textLoadStage", sceneLoadService->get_LastTextLoadStage());
+                AppendDiagnosticField(message, "textFontPath", sceneLoadService->get_LastTextFontRelativePath());
+                AppendDiagnosticField(message, "textureLoadStage", sceneLoadService->get_LastTextureLoadStage());
+                AppendDiagnosticField(message, "texturePath", sceneLoadService->get_LastTextureRelativePath());
+                AppendDiagnosticField(message, "fontDeserializeStage", sceneLoadService->get_LastFontDeserializeStage());
+            }
+
+            ::RuntimeSceneAssetReferenceResolver* referenceResolver = engineCore->get_SceneAssetReferenceResolver();
+            if (referenceResolver != nullptr) {
+                AppendDiagnosticField(message, "resolverTextLoadStage", referenceResolver->get_LastTextLoadStage());
+                AppendDiagnosticField(message, "resolverTextFontPath", referenceResolver->get_LastTextFontRelativePath());
+                AppendDiagnosticField(message, "resolverTextureLoadStage", referenceResolver->get_LastTextureLoadStage());
+                AppendDiagnosticField(message, "resolverTexturePath", referenceResolver->get_LastTextureRelativePath());
+                AppendDiagnosticField(message, "resolverFontDeserializeStage", referenceResolver->get_LastFontDeserializeStage());
+            }
+
+            return message;
+        }
+
+        /// Builds one live scene-trace snapshot that summarizes the current scene-manager state during normal execution.
+        /// <param name="engineCore">Generated-core instance that exposes scene-manager diagnostics.</param>
+        /// <returns>Formatted scene-trace snapshot.</returns>
+        std::string BuildLiveSceneTraceMessage(::Core* engineCore) {
+            if (engineCore == nullptr) {
+                return "engineCore=<null>";
+            }
+
+            std::string message = "updateStage=" + engineCore->get_LastSceneTransitionStage();
+            ::SceneManager* sceneManager = engineCore->get_SceneManager();
+            if (sceneManager == nullptr) {
+                message += "\nsceneManager=<null>";
+                return message;
+            }
+
+            message += "\nsceneTransitionStage=" + sceneManager->get_LastTraceStage();
+            message += "\nsceneId=" + sceneManager->get_LastTraceSceneId();
+            message += "\nloadedSceneCount=" + std::to_string(sceneManager->get_LastTraceLoadedSceneCount());
+            message += "\npendingSceneOperationCount=" + std::to_string(sceneManager->get_LastTracePendingOperationCount());
+
+            List<std::string>* loadedSceneIds = sceneManager->GetLoadedSceneIds();
+            if (loadedSceneIds == nullptr) {
+                message += "\nloadedSceneIds=<null>";
+                return message;
+            }
+
+            message += "\nloadedSceneIds=";
+            for (int32_t index = 0; index < loadedSceneIds->get_Count(); index++) {
+                if (index > 0) {
+                    message += ",";
+                }
+
+                message += (*loadedSceneIds).get_Item(index);
+            }
+
+            delete loadedSceneIds;
+            return message;
+        }
+
+        /// Persists the live scene trace only when the scene-manager state changes so the SD card log remains readable.
+        /// <param name="engineCore">Generated-core instance whose scene state should be recorded.</param>
+        void WriteLiveSceneTraceIfChanged(::Core* engineCore) {
+            static std::string previousMessage;
+
+            const std::string message = BuildLiveSceneTraceMessage(engineCore);
+            if (message == previousMessage) {
+                return;
+            }
+
+            previousMessage = message;
+            WriteSceneTraceLog(message);
         }
 
         /// Builds one runtime scene catalog from the generated native scene-manifest entries.
@@ -143,18 +266,24 @@ namespace helengine::nintendo3ds {
         while (aptMainLoop()) {
             hidScanInput();
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
-            if (EngineCore != nullptr && EngineRenderManager2D != nullptr) {
+            if (EngineCore != nullptr && EngineRenderManager2D != nullptr && EngineRenderManager3D != nullptr) {
                 try {
                     AssignScreenRenderTargetsToSceneCameras();
+                    EngineRenderManager3D->BeginFrame();
                     EngineRenderManager2D->BeginFrame();
                     EngineCore->Update(1.0 / 60.0);
+                    WriteLiveSceneTraceIfChanged(EngineCore);
                     EngineRenderManager2D->FlushReleasedTextures();
                 } catch (const std::exception& exception) {
-                    WriteDiagnosticLog("core-update", exception.what());
+                    const std::string diagnosticMessage = BuildManagedRuntimeDiagnosticMessage(exception.what(), EngineCore);
+                    WriteDiagnosticLog("core-update", diagnosticMessage.c_str());
                     HoldOnFailure(UpdateFailureTopScreenColor, UpdateFailureBottomScreenColor);
                     break;
                 } catch (const Exception* exception) {
-                    WriteDiagnosticLog("core-update", exception != nullptr ? exception->what() : "Unknown managed runtime exception.");
+                    const std::string diagnosticMessage = BuildManagedRuntimeDiagnosticMessage(
+                        exception != nullptr ? exception->what() : "Unknown managed runtime exception.",
+                        EngineCore);
+                    WriteDiagnosticLog("core-update", diagnosticMessage.c_str());
                     delete exception;
                     HoldOnFailure(UpdateFailureTopScreenColor, UpdateFailureBottomScreenColor);
                     break;
@@ -168,11 +297,15 @@ namespace helengine::nintendo3ds {
                     EngineCore->Draw();
                     EngineRenderManager2D->Draw();
                 } catch (const std::exception& exception) {
-                    WriteDiagnosticLog("core-draw", exception.what());
+                    const std::string diagnosticMessage = BuildManagedRuntimeDiagnosticMessage(exception.what(), EngineCore);
+                    WriteDiagnosticLog("core-draw", diagnosticMessage.c_str());
                     HoldOnFailure(DrawFailureTopScreenColor, DrawFailureBottomScreenColor);
                     break;
                 } catch (const Exception* exception) {
-                    WriteDiagnosticLog("core-draw", exception != nullptr ? exception->what() : "Unknown managed runtime exception.");
+                    const std::string diagnosticMessage = BuildManagedRuntimeDiagnosticMessage(
+                        exception != nullptr ? exception->what() : "Unknown managed runtime exception.",
+                        EngineCore);
+                    WriteDiagnosticLog("core-draw", diagnosticMessage.c_str());
                     delete exception;
                     HoldOnFailure(DrawFailureTopScreenColor, DrawFailureBottomScreenColor);
                     break;
@@ -230,6 +363,12 @@ namespace helengine::nintendo3ds {
         }
 #endif
         C2D_TargetClear(TopTarget, topScreenClearColor);
+#if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
+        if (EngineRenderManager3D != nullptr) {
+            EngineRenderManager3D->RenderTopScreen(TopTarget);
+        }
+#endif
+        C2D_Prepare();
         C2D_SceneBegin(TopTarget);
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
         if (EngineRenderManager2D != nullptr) {
@@ -238,6 +377,7 @@ namespace helengine::nintendo3ds {
 #endif
 
         C2D_TargetClear(BottomTarget, bottomScreenClearColor);
+        C2D_Prepare();
         C2D_SceneBegin(BottomTarget);
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
         if (EngineRenderManager2D != nullptr) {
@@ -293,7 +433,7 @@ namespace helengine::nintendo3ds {
         EngineOptions->set_RenderList2DInitialCapacity(64);
         EngineOptions->set_RenderList3DInitialCapacity(64);
 
-        EngineRenderManager3D = new Nintendo3DsStartupRenderManager3D();
+        EngineRenderManager3D = new Nintendo3DsRenderManager3D();
         EngineRenderManager2D = new Nintendo3DsStartupRenderManager2D();
         EngineInputBackend = new Nintendo3DsStartupInputBackend();
         const char* runtimePlatformVersion = he_get_runtime_platform_version();
@@ -316,8 +456,10 @@ namespace helengine::nintendo3ds {
         Nintendo3DsPackagedAssetLoader packagedAssetLoader("romfs:");
         const char* startupSceneRelativePath = he_get_runtime_startup_scene_relative_path();
         if (startupSceneRelativePath == nullptr || startupSceneRelativePath[0] == '\0') {
+            WriteDiagnosticLog("startup-scene-load", "Runtime startup scene path was missing.");
             return;
         } else if (!packagedAssetLoader.AssetExists(startupSceneRelativePath)) {
+            WriteDiagnosticLog("startup-scene-load", startupSceneRelativePath);
             return;
         }
 

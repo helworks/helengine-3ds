@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdio>
 #include <cstring>
 #include <stdexcept>
 
@@ -143,6 +144,89 @@ namespace helengine::nintendo3ds {
                 | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGBA8)
                 | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO);
         }
+
+        /// Decodes one cooked texture texel into shared-engine RGBA bytes before the Nintendo 3DS upload swizzle is applied.
+        /// <param name="data">Cooked texture asset that owns the texel payload.</param>
+        /// <param name="sampleX">Zero-based texel x coordinate to decode.</param>
+        /// <param name="sampleY">Zero-based texel y coordinate to decode.</param>
+        /// <returns>Decoded shared-engine RGBA texel.</returns>
+        byte4 DecodeCookedColor(TextureAsset* data, int32_t sampleX, int32_t sampleY) {
+            if (data == nullptr || data->Colors == nullptr || data->Colors->Data == nullptr) {
+                throw std::invalid_argument("Nintendo 3DS texture diagnostics require one decoded texture asset.");
+            }
+
+            int32_t textureWidth = static_cast<int32_t>(data->Width);
+            if (data->ColorFormat == TextureAssetColorFormat::Rgba32) {
+                int32_t sourceIndex = ((sampleY * textureWidth) + sampleX) * Rgba32BytesPerPixel;
+                return byte4(
+                    data->Colors->Data[sourceIndex],
+                    data->Colors->Data[sourceIndex + 1],
+                    data->Colors->Data[sourceIndex + 2],
+                    data->Colors->Data[sourceIndex + 3]);
+            } else if (data->ColorFormat == TextureAssetColorFormat::Rgba4444) {
+                int32_t sourceIndex = ((sampleY * textureWidth) + sampleX) * Rgba4444BytesPerPixel;
+                uint16_t packedColor = static_cast<uint16_t>(data->Colors->Data[sourceIndex] | (data->Colors->Data[sourceIndex + 1] << 8));
+                return UnpackRgba4444(packedColor);
+            }
+
+            uint8_t paletteIndex = data->ColorFormat == TextureAssetColorFormat::Indexed4
+                ? ReadPackedNibbleIndex(data->Colors, textureWidth, sampleX, sampleY)
+                : data->Colors->Data[(sampleY * textureWidth) + sampleX];
+            int32_t paletteOffset = static_cast<int32_t>(paletteIndex) * PaletteEntryBytes;
+            if (data->PaletteColors == nullptr
+                || data->PaletteColors->Data == nullptr
+                || paletteOffset < 0
+                || paletteOffset + 3 >= data->PaletteColors->Length) {
+                throw std::invalid_argument("Nintendo 3DS texture diagnostics require one valid palette payload.");
+            }
+
+            return byte4(
+                data->PaletteColors->Data[paletteOffset],
+                data->PaletteColors->Data[paletteOffset + 1],
+                data->PaletteColors->Data[paletteOffset + 2],
+                data->PaletteColors->Data[paletteOffset + 3]);
+        }
+
+        /// Builds one representative texture summary so the runtime can distinguish bad cooked payloads from bad GPU uploads.
+        /// <param name="data">Cooked texture asset about to be uploaded.</param>
+        /// <returns>Formatted representative cooked-texture summary.</returns>
+        std::string BuildTextureSampleTraceMessage(TextureAsset* data) {
+            if (data == nullptr || data->Width == 0 || data->Height == 0) {
+                return std::string();
+            }
+
+            const int32_t centerX = static_cast<int32_t>(data->Width) / 2;
+            const int32_t centerY = static_cast<int32_t>(data->Height) / 2;
+            const int32_t lastX = static_cast<int32_t>(data->Width) - 1;
+            const int32_t lastY = static_cast<int32_t>(data->Height) - 1;
+            const byte4 firstColor = DecodeCookedColor(data, 0, 0);
+            const byte4 centerColor = DecodeCookedColor(data, centerX, centerY);
+            const byte4 lastColor = DecodeCookedColor(data, lastX, lastY);
+
+            char message[512];
+            std::snprintf(
+                message,
+                sizeof(message),
+                "TextureLoad: id=%s size=%ux%u format=%d alpha=%d first=(%u,%u,%u,%u) center=(%u,%u,%u,%u) last=(%u,%u,%u,%u)",
+                data->get_Id().c_str(),
+                static_cast<unsigned>(data->Width),
+                static_cast<unsigned>(data->Height),
+                static_cast<int32_t>(data->ColorFormat),
+                static_cast<int32_t>(data->AlphaPrecision),
+                static_cast<unsigned>(firstColor.X),
+                static_cast<unsigned>(firstColor.Y),
+                static_cast<unsigned>(firstColor.Z),
+                static_cast<unsigned>(firstColor.W),
+                static_cast<unsigned>(centerColor.X),
+                static_cast<unsigned>(centerColor.Y),
+                static_cast<unsigned>(centerColor.Z),
+                static_cast<unsigned>(centerColor.W),
+                static_cast<unsigned>(lastColor.X),
+                static_cast<unsigned>(lastColor.Y),
+                static_cast<unsigned>(lastColor.Z),
+                static_cast<unsigned>(lastColor.W));
+            return std::string(message);
+        }
     }
 
     /// Creates one empty Nintendo 3DS runtime texture with no native texture upload yet.
@@ -153,7 +237,9 @@ namespace helengine::nintendo3ds {
         , PaddedWidth(0)
         , PaddedHeight(0)
         , NativeTexture {}
-        , NativeTextureInitialized(false) {
+        , NativeTextureInitialized(false)
+        , DebugTraceSummary()
+        , DebugTraceSummaryEmitted(false) {
     }
 
     /// Releases one owned Nintendo 3DS native texture upload.
@@ -192,6 +278,8 @@ namespace helengine::nintendo3ds {
         }
 
         Reset();
+        DebugTraceSummary = BuildTextureSampleTraceMessage(data);
+        DebugTraceSummaryEmitted = false;
 
         ActualWidth = data->Width;
         ActualHeight = data->Height;
@@ -319,6 +407,22 @@ namespace helengine::nintendo3ds {
         return PaddedHeight;
     }
 
+    /// Returns one deferred diagnostic summary describing representative cooked texels for this runtime texture.
+    const std::string& Nintendo3DsRuntimeTexture::GetDebugTraceSummary() const {
+        return DebugTraceSummary;
+    }
+
+    /// Returns the deferred diagnostic summary once so later render-time tracing can show what texels were uploaded.
+    bool Nintendo3DsRuntimeTexture::TryTakeDebugTraceSummary(std::string& summary) {
+        if (DebugTraceSummary.empty() || DebugTraceSummaryEmitted) {
+            return false;
+        }
+
+        summary = DebugTraceSummary;
+        DebugTraceSummaryEmitted = true;
+        return true;
+    }
+
     /// Releases any currently owned Nintendo 3DS native texture upload.
     void Nintendo3DsRuntimeTexture::Reset() {
         if (NativeTextureInitialized) {
@@ -331,6 +435,8 @@ namespace helengine::nintendo3ds {
         ActualHeight = 0;
         PaddedWidth = 0;
         PaddedHeight = 0;
+        DebugTraceSummary.clear();
+        DebugTraceSummaryEmitted = false;
     }
 }
 
