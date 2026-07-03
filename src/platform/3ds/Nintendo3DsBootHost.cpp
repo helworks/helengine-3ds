@@ -426,6 +426,8 @@ namespace helengine::nintendo3ds {
         C3D_RenderTargetClear(TopTarget, C3D_CLEAR_ALL, topScreenClearColor, 0);
 #endif
         C3D_FrameSplit(0);
+        C2D_Prepare();
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_ALL);
         C2D_SceneBegin(TopTarget);
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
         if (EngineRenderManager2D != nullptr) {
@@ -435,6 +437,7 @@ namespace helengine::nintendo3ds {
         C2D_Flush();
         C3D_FrameSplit(0);
         C2D_TargetClear(BottomTarget, bottomScreenClearColor);
+        C2D_Prepare();
         C2D_SceneBegin(BottomTarget);
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
         if (EngineRenderManager2D != nullptr) {

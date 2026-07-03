@@ -211,7 +211,7 @@ namespace helengine::nintendo3ds {
                 message,
                 sizeof(message),
                 "Render2D.Draw: cameraCount=%d",
-                cameras == nullptr ? -1 : cameras->get_Count());
+                cameras == nullptr ? -1 : static_cast<int>(cameras->get_Count()));
             AppendRenderTrace(message);
         }
         for (int32_t cameraIndex = 0; cameraIndex < cameras->get_Count(); cameraIndex++) {
@@ -263,11 +263,11 @@ namespace helengine::nintendo3ds {
                     sizeof(message),
                     "Render2D.DrawCamera: screen=%s queueCount=%d viewport=(%d,%d,%d,%d)",
                     screenTarget == Nintendo3DsScreenTarget::Top ? "top" : "bottom",
-                    renderQueue->get_Count(),
-                    viewportX,
-                    viewportY,
-                    viewportWidth,
-                    viewportHeight);
+                    static_cast<int>(renderQueue->get_Count()),
+                    static_cast<int>(viewportX),
+                    static_cast<int>(viewportY),
+                    static_cast<int>(viewportWidth),
+                    static_cast<int>(viewportHeight));
                 AppendRenderTrace(message);
             }
             renderQueue->VisitOrdered(this);
@@ -302,6 +302,7 @@ namespace helengine::nintendo3ds {
                 continue;
             }
 
+            ActiveScreenTarget = command.ScreenTarget;
             ActiveViewportOffsetX = command.ViewportOffsetX;
             ActiveViewportOffsetY = command.ViewportOffsetY;
             switch (command.Type) {
@@ -325,6 +326,7 @@ namespace helengine::nintendo3ds {
                 continue;
             }
 
+            ActiveScreenTarget = command.ScreenTarget;
             ActiveViewportOffsetX = command.ViewportOffsetX;
             ActiveViewportOffsetY = command.ViewportOffsetY;
             switch (command.Type) {
@@ -700,6 +702,13 @@ namespace helengine::nintendo3ds {
             static_cast<unsigned>(runtimeTexture->GetDebugTraceSummary().size()));
         AppendDetailedRenderTrace(textTraceMessage);
         C2D_SetTintMode(C2D_TintMult);
+        bool hasFirstGlyphTrace = false;
+        float4 firstGlyphSourceRect;
+        float4 firstGlyphDrawBounds;
+        float4 firstGlyphSubTextureBounds;
+        char firstGlyphCharacter = '\0';
+        int32_t missingGlyphCount = 0;
+        int32_t drawnGlyphCount = 0;
         for (char character : content) {
             if (character == '\n') {
                 offsetY += lineHeight;
@@ -716,6 +725,7 @@ namespace helengine::nintendo3ds {
 
             FontChar glyph;
             if (font->get_Characters() == nullptr || !font->get_Characters()->TryGetValue(character, glyph)) {
+                missingGlyphCount++;
                 continue;
             }
 
@@ -744,11 +754,54 @@ namespace helengine::nintendo3ds {
             drawParams.center.y = 0.0f;
             drawParams.depth = 0.0f;
             drawParams.angle = 0.0f;
-            C2D_DrawImage(image, &drawParams, &tint);
+            if (!hasFirstGlyphTrace) {
+                hasFirstGlyphTrace = true;
+                firstGlyphCharacter = character;
+                firstGlyphSourceRect = sourceRect;
+                firstGlyphDrawBounds = float4(drawParams.pos.x, drawParams.pos.y, drawParams.pos.w, drawParams.pos.h);
+                firstGlyphSubTextureBounds = float4(subTexture.left, subTexture.top, subTexture.right, subTexture.bottom);
+            }
+            bool glyphDrawn = C2D_DrawImage(image, &drawParams, &tint);
+            drawnGlyphCount++;
+            if (!glyphDrawn) {
+                AppendDetailedRenderTrace("Render2D.RenderTextGlyphs: draw-image=false");
+            }
 
             offsetX += glyph.AdvanceWidth > 0.0f
                 ? glyph.AdvanceWidth * scale
                 : drawParams.pos.w;
+        }
+
+        if (hasFirstGlyphTrace) {
+            char glyphTraceMessage[512];
+            std::snprintf(
+                glyphTraceMessage,
+                sizeof(glyphTraceMessage),
+                "Render2D.RenderTextGlyphs: first='%c' src=(%.4f,%.4f,%.4f,%.4f) dst=(%.1f,%.1f,%.1f,%.1f) sub=(%.4f,%.4f,%.4f,%.4f) drawn=%d missing=%d",
+                firstGlyphCharacter,
+                firstGlyphSourceRect.X,
+                firstGlyphSourceRect.Y,
+                firstGlyphSourceRect.Z,
+                firstGlyphSourceRect.W,
+                firstGlyphDrawBounds.X,
+                firstGlyphDrawBounds.Y,
+                firstGlyphDrawBounds.Z,
+                firstGlyphDrawBounds.W,
+                firstGlyphSubTextureBounds.X,
+                firstGlyphSubTextureBounds.Y,
+                firstGlyphSubTextureBounds.Z,
+                firstGlyphSubTextureBounds.W,
+                static_cast<int>(drawnGlyphCount),
+                static_cast<int>(missingGlyphCount));
+            AppendDetailedRenderTrace(glyphTraceMessage);
+        } else {
+            char glyphTraceMessage[256];
+            std::snprintf(
+                glyphTraceMessage,
+                sizeof(glyphTraceMessage),
+                "Render2D.RenderTextGlyphs: no-drawable-glyphs missing=%d",
+                static_cast<int>(missingGlyphCount));
+            AppendDetailedRenderTrace(glyphTraceMessage);
         }
     }
 
