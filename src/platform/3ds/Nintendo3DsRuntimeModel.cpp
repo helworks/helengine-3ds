@@ -6,7 +6,7 @@
 
 namespace helengine::nintendo3ds {
     /// Creates one Nintendo 3DS runtime model with one linear-allocated vertex stream ready for citro3d submission.
-    Nintendo3DsRuntimeModel::Nintendo3DsRuntimeModel(float3* vertexData, int32_t vertexCount)
+    Nintendo3DsRuntimeModel::Nintendo3DsRuntimeModel(Nintendo3DsModelVertex* vertexData, int32_t vertexCount)
         : RuntimeModel()
         , VertexData(vertexData)
         , VertexCount(vertexCount) {
@@ -23,8 +23,8 @@ namespace helengine::nintendo3ds {
         RuntimeModel::Dispose();
     }
 
-    /// Gets the linear-allocated vertex data used by the Nintendo 3DS solid-color path.
-    float3* Nintendo3DsRuntimeModel::GetVertexData() const {
+    /// Gets the linear-allocated vertex data used by the Nintendo 3DS lit-color path.
+    Nintendo3DsModelVertex* Nintendo3DsRuntimeModel::GetVertexData() const {
         return VertexData;
     }
 

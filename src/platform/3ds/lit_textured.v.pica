@@ -1,0 +1,57 @@
+; HelEngine Nintendo 3DS lit-textured vertex shader
+; Uniforms
+.fvec projection[4]
+.fvec modelView[4]
+.fvec lightVec
+.fvec lightClr
+.fvec ambientClr
+.fvec baseColor
+; Constants
+.constf constants(0.0, 1.0, -1.0, 0.0)
+.alias zeros constants.xxxx
+.alias ones constants.yyyy
+; Outputs
+.out outpos position
+.out outtc0 texcoord0
+.out outclr color
+; Inputs
+.alias inpos v0
+.alias intex v1
+.alias innrm v2
+
+.proc main
+    mov r0.xyz, inpos
+    mov r0.w, ones
+
+    dp4 r1.x, modelView[0], r0
+    dp4 r1.y, modelView[1], r0
+    dp4 r1.z, modelView[2], r0
+    dp4 r1.w, modelView[3], r0
+
+    dp4 outpos.x, projection[0], r1
+    dp4 outpos.y, projection[1], r1
+    dp4 outpos.z, projection[2], r1
+    dp4 outpos.w, projection[3], r1
+
+    mov outtc0, intex
+
+    mov r2.xyz, innrm
+    mov r2.w, zeros
+    dp4 r3.x, modelView[0], r2
+    dp4 r3.y, modelView[1], r2
+    dp4 r3.z, modelView[2], r2
+    mov r3.w, zeros
+    dp3 r4.x, r3, r3
+    rsq r4.x, r4.x
+    mul r3.xyz, r3.xyz, r4.x
+
+    dp3 r5.x, lightVec, r3
+    add r5.x, zeros, -r5.x
+    max r5.x, zeros, r5.x
+
+    mul r6, lightClr, r5.xxxx
+    add r6, ambientClr, r6
+    mul r6, baseColor, r6
+    min outclr, ones, r6
+    end
+.end

@@ -10,6 +10,8 @@
 #include "CoreInitializationOptions.hpp"
 #include "EngineBinaryReadContext.hpp"
 #include "ICamera.hpp"
+#include "IDrawable3D.hpp"
+#include "IRenderQueue3D.hpp"
 #include "ObjectManager.hpp"
 #include "PlatformInfo.hpp"
 #include "RenderTarget.hpp"
@@ -30,6 +32,7 @@
 #include "runtime/runtime_startup_manifest.hpp"
 #include "runtime/native_list.hpp"
 #include "runtime/native_exceptions.hpp"
+#include "Entity.hpp"
 #endif
 
 namespace helengine::nintendo3ds {
@@ -161,6 +164,11 @@ namespace helengine::nintendo3ds {
             }
 
             std::string message = "updateStage=" + engineCore->get_LastSceneTransitionStage();
+            ::RuntimeSceneLoadService* sceneLoadService = engineCore->get_SceneLoadService();
+            if (sceneLoadService != nullptr) {
+                message += "\nsceneLoadStage=" + sceneLoadService->get_LastTraceStage();
+                message += "\nsceneLoadComponent=" + sceneLoadService->get_LastTraceComponentTypeId();
+            }
             ::SceneManager* sceneManager = engineCore->get_SceneManager();
             if (sceneManager == nullptr) {
                 message += "\nsceneManager=<null>";
@@ -188,6 +196,71 @@ namespace helengine::nintendo3ds {
             }
 
             delete loadedSceneIds;
+
+            ::ObjectManager* objectManager = engineCore->get_ObjectManager();
+            if (objectManager == nullptr) {
+                message += "\nobjectManager=<null>";
+                return message;
+            }
+
+            List<ICamera*>* cameras = objectManager->get_Cameras();
+            message += "\ncameraCount=" + std::to_string(cameras != nullptr ? cameras->get_Count() : 0);
+            List<IDrawable3D*>* drawables3D = objectManager->get_Drawables3D();
+            message += "\ndrawable3DCount=" + std::to_string(drawables3D != nullptr ? drawables3D->get_Count() : 0);
+            List<DirectionalLightComponent*>* directionalLights = objectManager->get_DirectionalLights();
+            message += "\ndirectionalLightCount=" + std::to_string(directionalLights != nullptr ? directionalLights->get_Count() : 0);
+
+            if (drawables3D != nullptr) {
+                for (int32_t drawableIndex = 0; drawableIndex < drawables3D->get_Count(); drawableIndex++) {
+                    IDrawable3D* drawable = (*drawables3D)[drawableIndex];
+                    Entity* drawableOwner = drawable != nullptr ? drawable->get_Parent() : nullptr;
+                    if (drawableOwner == nullptr) {
+                        message += "\ndrawable3D[" + std::to_string(drawableIndex) + "].layerMask=<null>";
+                        continue;
+                    }
+
+                    message += "\ndrawable3D[" + std::to_string(drawableIndex) + "].layerMask=" + std::to_string(drawableOwner->get_LayerMask());
+                }
+            }
+
+            if (cameras == nullptr) {
+                return message;
+            }
+
+            for (int32_t cameraIndex = 0; cameraIndex < cameras->get_Count(); cameraIndex++) {
+                ICamera* camera = (*cameras)[cameraIndex];
+                if (camera == nullptr) {
+                    message += "\ncamera[" + std::to_string(cameraIndex) + "]=<null>";
+                    continue;
+                }
+
+                Entity* cameraOwner = camera->get_Parent();
+                float4 viewport = camera->get_Viewport();
+                IRenderQueue3D* renderQueue3D = camera->get_RenderQueue3D();
+                message += "\ncamera[" + std::to_string(cameraIndex) + "].viewportY=" + std::to_string(viewport.Y);
+                message += "\ncamera[" + std::to_string(cameraIndex) + "].layerMask=" + std::to_string(camera->get_LayerMask());
+                message += "\ncamera[" + std::to_string(cameraIndex) + "].farPlane=" + std::to_string(camera->get_FarPlaneDistance());
+                message += "\ncamera[" + std::to_string(cameraIndex) + "].queue3DCount=" + std::to_string(renderQueue3D != nullptr ? renderQueue3D->get_Count() : -1);
+                RenderTarget* renderTarget = camera->get_RenderTarget();
+                message += "\ncamera[" + std::to_string(cameraIndex) + "].targetWidth=" + std::to_string(renderTarget != nullptr ? renderTarget->get_Width() : -1);
+                message += "\ncamera[" + std::to_string(cameraIndex) + "].targetHeight=" + std::to_string(renderTarget != nullptr ? renderTarget->get_Height() : -1);
+                if (cameraOwner == nullptr) {
+                    message += "\ncamera[" + std::to_string(cameraIndex) + "].owner=<null>";
+                    continue;
+                }
+
+                float3 localPosition = cameraOwner->get_LocalPosition();
+                message += "\ncamera[" + std::to_string(cameraIndex) + "].localPos=("
+                    + std::to_string(localPosition.X) + ", "
+                    + std::to_string(localPosition.Y) + ", "
+                    + std::to_string(localPosition.Z) + ")";
+                float3 worldPosition = cameraOwner->get_Position();
+                message += "\ncamera[" + std::to_string(cameraIndex) + "].worldPos=("
+                    + std::to_string(worldPosition.X) + ", "
+                    + std::to_string(worldPosition.Y) + ", "
+                    + std::to_string(worldPosition.Z) + ")";
+            }
+
             return message;
         }
 
@@ -423,7 +496,7 @@ namespace helengine::nintendo3ds {
             EngineRenderManager3D->RenderTopScreen(TopTarget, topScreenClearColor);
         }
 #else
-        C3D_RenderTargetClear(TopTarget, C3D_CLEAR_ALL, topScreenClearColor, 0);
+        C3D_RenderTargetClear(TopTarget, C3D_CLEAR_ALL, __builtin_bswap32(topScreenClearColor), 0);
 #endif
         C3D_FrameSplit(0);
         C2D_Prepare();

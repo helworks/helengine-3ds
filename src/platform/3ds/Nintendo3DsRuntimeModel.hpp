@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include "RuntimeModel.hpp"
+#include "platform/3ds/Nintendo3DsModelVertex.hpp"
 
 namespace helengine::nintendo3ds {
     /// Stores one Nintendo 3DS-owned runtime model copy so mesh components can render after the source model asset has been released by the scene loader.
@@ -13,20 +14,20 @@ namespace helengine::nintendo3ds {
         /// Creates one Nintendo 3DS runtime model with one linear-allocated vertex stream ready for citro3d submission.
         /// <param name="vertexData">Linear-allocated triangle-stream vertex data owned by this runtime model.</param>
         /// <param name="vertexCount">Number of vertices stored in the supplied triangle stream.</param>
-        Nintendo3DsRuntimeModel(float3* vertexData, int32_t vertexCount);
+        Nintendo3DsRuntimeModel(Nintendo3DsModelVertex* vertexData, int32_t vertexCount);
 
         /// Releases the Nintendo 3DS-owned linear vertex buffer before the runtime model is discarded.
         void Dispose() override;
 
-        /// Gets the linear-allocated vertex data used by the Nintendo 3DS solid-color path.
-        float3* GetVertexData() const;
+        /// Gets the linear-allocated vertex data used by the Nintendo 3DS lit-color path.
+        Nintendo3DsModelVertex* GetVertexData() const;
 
         /// Gets the number of vertices stored in the linear-allocated triangle stream.
         int32_t GetVertexCount() const;
 
     private:
         /// Stores the linear-allocated triangle-stream vertex data consumed by citro3d.
-        float3* VertexData;
+        Nintendo3DsModelVertex* VertexData;
 
         /// Stores the number of vertices contained in the linear-allocated triangle stream.
         int32_t VertexCount;
