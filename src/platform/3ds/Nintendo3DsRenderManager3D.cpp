@@ -38,8 +38,8 @@
 #include "platform/3ds/Nintendo3DsRuntimeTexture.hpp"
 #include "runtime/native_cast.hpp"
 #include "lit_color_shbin.h"
+#include "lit_color_shbin.h"
 #include "lit_textured_shbin.h"
-#include "solid_color_shbin.h"
 #include "system/io/file.hpp"
 
 namespace helengine::nintendo3ds {
@@ -590,15 +590,15 @@ namespace helengine::nintendo3ds {
         }
     }
 
-    /// Initializes the solid-color untextured shader program the first time one untextured 3D draw is submitted.
+    /// Initializes the lit untextured shader program the first time one untextured 3D draw is submitted.
     void Nintendo3DsRenderManager3D::EnsureShaderInitialized() {
         if (HasShaderProgram) {
             return;
         }
 
-        VertexShaderDvlb = DVLB_ParseFile((u32*)solid_color_shbin, solid_color_shbin_size);
+        VertexShaderDvlb = DVLB_ParseFile((u32*)lit_color_shbin, lit_color_shbin_size);
         if (VertexShaderDvlb == nullptr) {
-            throw std::runtime_error("Nintendo 3DS solid-color vertex shader parsing failed.");
+            throw std::runtime_error("Nintendo 3DS lit-color vertex shader parsing failed.");
         }
 
         shaderProgramInit(&Program);
@@ -607,6 +607,10 @@ namespace helengine::nintendo3ds {
 
         UniformLocationProjection = shaderInstanceGetUniformLocation(Program.vertexShader, "projection");
         UniformLocationModelView = shaderInstanceGetUniformLocation(Program.vertexShader, "modelView");
+        UniformLocationLightVector = shaderInstanceGetUniformLocation(Program.vertexShader, "lightVec");
+        UniformLocationLightColor = shaderInstanceGetUniformLocation(Program.vertexShader, "lightClr");
+        UniformLocationAmbientColor = shaderInstanceGetUniformLocation(Program.vertexShader, "ambientClr");
+        UniformLocationBaseColor = shaderInstanceGetUniformLocation(Program.vertexShader, "baseColor");
 
         HasShaderProgram = true;
     }
@@ -636,18 +640,18 @@ namespace helengine::nintendo3ds {
         HasTexturedShaderProgram = true;
     }
 
-    /// Reapplies the fixed Citro3D pipeline state required by the solid-color untextured 3D path after Citro2D work may have changed GPU state.
+    /// Reapplies the fixed Citro3D pipeline state required by the lit untextured 3D path after Citro2D work may have changed GPU state.
     void Nintendo3DsRenderManager3D::ApplyUntexturedPipelineState() {
         C3D_AttrInfo* attrInfo = C3D_GetAttrInfo();
         AttrInfo_Init(attrInfo);
         AttrInfo_AddLoader(attrInfo, 0, GPU_FLOAT, 3);
-        AttrInfo_AddFixed(attrInfo, 1);
+        AttrInfo_AddLoader(attrInfo, 1, GPU_FLOAT, 3);
 
         C3D_TexEnv* env = C3D_GetTexEnv(0);
         C3D_TexEnvInit(env);
         C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
         C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
-        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_ALL);
+        C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
         C3D_CullFace(GPU_CULL_NONE);
     }
 
@@ -945,8 +949,10 @@ namespace helengine::nintendo3ds {
                 ? float4(1.0f, 1.0f, 1.0f, 1.0f)
                 : runtimeMaterial->GetBaseColor();
             float4 directionalLightColor(0.0f, 0.0f, 0.0f, 1.0f);
-            float4 effectiveAmbientColor = float4(1.0f, 1.0f, 1.0f, 1.0f);
-            if (lightingModel != RuntimeMaterialLightingModel::Unlit && directionalLight != nullptr) {
+            float4 effectiveAmbientColor = ambientLightColor;
+            if (lightingModel == RuntimeMaterialLightingModel::Unlit) {
+                effectiveAmbientColor = float4(1.0f, 1.0f, 1.0f, 1.0f);
+            } else if (directionalLight != nullptr) {
                 float4 authoredLightColor = directionalLight->get_Color();
                 const float intensity = directionalLight->get_Intensity();
                 directionalLightColor = float4(
@@ -1006,10 +1012,21 @@ namespace helengine::nintendo3ds {
                 EnsureShaderInitialized();
                 C3D_BindProgram(&Program);
                 ApplyUntexturedPipelineState();
-                C3D_FixedAttribSet(1, baseColor.X, baseColor.Y, baseColor.Z, baseColor.W);
                 BufInfo_Add(bufInfo, vertexData, sizeof(Nintendo3DsModelVertex), 1, 0x0);
-                C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, UniformLocationProjection, &ProjectionMatrix);
-                C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, UniformLocationModelView, &gpuModelView);
+                BufInfo_Add(bufInfo, reinterpret_cast<const uint8_t*>(vertexData) + (sizeof(float) * 5), sizeof(Nintendo3DsModelVertex), 1, 0x1);
+                ApplyCommonLightingUniforms(
+                    UniformLocationProjection,
+                    UniformLocationModelView,
+                    UniformLocationLightVector,
+                    UniformLocationLightColor,
+                    UniformLocationAmbientColor,
+                    UniformLocationBaseColor,
+                    ProjectionMatrix,
+                    gpuModelView,
+                    viewSpaceLightVector,
+                    directionalLightColor,
+                    effectiveAmbientColor,
+                    baseColor);
             }
 
             C3D_DrawArrays(GPU_TRIANGLES, submesh->get_IndexStart(), submesh->get_IndexCount());
