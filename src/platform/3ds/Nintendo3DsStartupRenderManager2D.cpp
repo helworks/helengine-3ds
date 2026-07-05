@@ -582,6 +582,9 @@ namespace helengine::nintendo3ds {
             return;
         }
 
+        float3 scale = sprite->get_Parent()->get_Scale();
+        float4 orientation = sprite->get_Parent()->get_Orientation();
+
         Nintendo3DsRuntimeTexture* runtimeTexture = dynamic_cast<Nintendo3DsRuntimeTexture*>(sprite->get_Texture());
         if (runtimeTexture == nullptr || !runtimeTexture->HasNativeTexture()) {
             AppendRenderTrace("Render2D.RenderSprite: missing-native-texture");
@@ -614,24 +617,31 @@ namespace helengine::nintendo3ds {
         C2D_SetTintMode(C2D_TintMult);
 
         C2D_DrawParams drawParams;
-        drawParams.pos.x = bounds.X + static_cast<float>(ActiveViewportOffsetX);
-        drawParams.pos.y = bounds.Y + static_cast<float>(ActiveViewportOffsetY);
-        drawParams.pos.w = bounds.Z;
-        drawParams.pos.h = bounds.W;
-        drawParams.center.x = 0.0f;
-        drawParams.center.y = 0.0f;
+        drawParams.pos.w = bounds.Z * scale.X;
+        drawParams.pos.h = bounds.W * scale.Y;
+        drawParams.pos.x = bounds.X + static_cast<float>(ActiveViewportOffsetX) + (drawParams.pos.w * 0.5f);
+        drawParams.pos.y = bounds.Y + static_cast<float>(ActiveViewportOffsetY) + (drawParams.pos.h * 0.5f);
+        drawParams.center.x = drawParams.pos.w * 0.5f;
+        drawParams.center.y = drawParams.pos.h * 0.5f;
         drawParams.depth = 0.0f;
-        drawParams.angle = 0.0f;
+        drawParams.angle = std::atan2(
+            2.0 * (static_cast<double>(orientation.W) * static_cast<double>(orientation.Z)
+                + static_cast<double>(orientation.X) * static_cast<double>(orientation.Y)),
+            1.0 - 2.0 * (static_cast<double>(orientation.Y) * static_cast<double>(orientation.Y)
+                + static_cast<double>(orientation.Z) * static_cast<double>(orientation.Z)));
 
         char spriteTraceMessage[256];
         std::snprintf(
             spriteTraceMessage,
             sizeof(spriteTraceMessage),
-            "Render2D.RenderSprite: pos=(%.1f,%.1f) size=(%.1f,%.1f) texture=%dx%d traceBytes=%u",
+            "Render2D.RenderSprite: pos=(%.1f,%.1f) size=(%.1f,%.1f) scale=(%.2f,%.2f) angle=%.3f texture=%dx%d traceBytes=%u",
             drawParams.pos.x,
             drawParams.pos.y,
             drawParams.pos.w,
             drawParams.pos.h,
+            scale.X,
+            scale.Y,
+            drawParams.angle,
             runtimeTexture->GetActualWidth(),
             runtimeTexture->GetActualHeight(),
             static_cast<unsigned>(runtimeTexture->GetDebugTraceSummary().size()));

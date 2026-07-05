@@ -38,6 +38,26 @@ public class Nintendo3DsStartupRenderManager2DSourceAuditTests {
     }
 
     /// <summary>
+    /// Verifies sprite rendering applies the entity world scale and Z rotation so authored 2D logo animation survives Nintendo 3DS playback.
+    /// </summary>
+    [Fact]
+    public void Source_whenSpriteIsRendered_appliesEntityScaleAndRotationToDrawParams() {
+        string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        string rendererSourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsStartupRenderManager2D.cpp");
+        string rendererSourceCode = File.ReadAllText(rendererSourcePath);
+
+        Assert.Contains("float3 scale = sprite->get_Parent()->get_Scale();", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("float4 orientation = sprite->get_Parent()->get_Orientation();", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("drawParams.pos.w = bounds.Z * scale.X;", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("drawParams.pos.h = bounds.W * scale.Y;", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("drawParams.pos.x = bounds.X + static_cast<float>(ActiveViewportOffsetX) + (drawParams.pos.w * 0.5f);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("drawParams.pos.y = bounds.Y + static_cast<float>(ActiveViewportOffsetY) + (drawParams.pos.h * 0.5f);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("drawParams.center.x = drawParams.pos.w * 0.5f;", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("drawParams.center.y = drawParams.pos.h * 0.5f;", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("drawParams.angle = std::atan2(", rendererSourceCode, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies text rendering uses the cooked font atlas, glyph metrics, and authored alignment instead of the citro2d system-font parser.
     /// </summary>
     [Fact]
