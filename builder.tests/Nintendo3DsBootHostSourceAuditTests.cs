@@ -22,6 +22,7 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("#include \"RenderTarget.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"RuntimeSceneCatalog.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"RuntimeSceneCatalogEntry.hpp\"", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("#include \"GeneratedRuntimeModuleRegistration.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"StandardPlatformActionBinding.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"StandardPlatformInputConfiguration.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"runtime/runtime_scene_catalog_manifest.hpp\"", sourceCode, StringComparison.Ordinal);
@@ -47,6 +48,7 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("BottomScreenRenderTargetMetadata = new RenderTarget();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("BottomScreenRenderTargetMetadata->set_Width(320);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineCore->Initialize(EngineRenderManager3D, EngineRenderManager2D, EngineInputBackend, EnginePlatformInfo, EngineOptions);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("RegisterGeneratedRuntimeModules(EngineCore);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("ActiveTopScreenColor = GeneratedCoreTopScreenColor;", sourceCode, StringComparison.Ordinal);
         Assert.Contains("ActiveBottomScreenColor = GeneratedCoreBottomScreenColor;", sourceCode, StringComparison.Ordinal);
     }

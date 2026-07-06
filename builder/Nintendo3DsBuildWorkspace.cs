@@ -109,7 +109,7 @@ public sealed class Nintendo3DsBuildWorkspace {
         string fullWorkingRootPath = Path.GetFullPath(workingRootPath);
         string fullOutputRootPath = Path.GetFullPath(outputRootPath);
         string fullGeneratedCoreRootPath = Path.GetFullPath(generatedCoreRootPath);
-        string romFsRootPath = Path.Combine(fullWorkingRootPath, "3ds", "romfs");
+        string romFsRootPath = Path.Combine(fullWorkingRootPath, "builder", "3ds", "romfs");
         string repositoryPackagePath = Path.Combine(fullRepositoryRootPath, "build", "helengine_3ds.3dsx");
         string exportPackagePath = Path.Combine(fullOutputRootPath, "helengine_3ds.3dsx");
 
@@ -120,7 +120,7 @@ public sealed class Nintendo3DsBuildWorkspace {
             fullGeneratedCoreRootPath,
             romFsRootPath,
             "/workspace-generated-core",
-            "/workspace-staging/3ds/romfs",
+            "/workspace-staging/builder/3ds/romfs",
             repositoryPackagePath,
             exportPackagePath);
     }

@@ -18,6 +18,7 @@
 #include "RuntimeSceneAssetReferenceResolver.hpp"
 #include "RuntimeSceneCatalog.hpp"
 #include "RuntimeSceneCatalogEntry.hpp"
+#include "GeneratedRuntimeModuleRegistration.hpp"
 #include "RuntimeSceneLoadService.hpp"
 #include "SceneLoadMode.hpp"
 #include "SceneManager.hpp"
@@ -580,6 +581,7 @@ namespace helengine::nintendo3ds {
         BottomScreenRenderTargetMetadata->set_Width(320);
         BottomScreenRenderTargetMetadata->set_Height(240);
         EngineCore->Initialize(EngineRenderManager3D, EngineRenderManager2D, EngineInputBackend, EnginePlatformInfo, EngineOptions);
+        RegisterGeneratedRuntimeModules(EngineCore);
 
         ActiveTopScreenColor = GeneratedCoreTopScreenColor;
         ActiveBottomScreenColor = GeneratedCoreBottomScreenColor;
