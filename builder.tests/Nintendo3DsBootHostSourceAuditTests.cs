@@ -16,6 +16,7 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("#if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"Core.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"CoreInitializationOptions.hpp\"", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("#include \"HostFileSystemContentStreamSource.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"ICamera.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"ObjectManager.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"PlatformInfo.hpp\"", sourceCode, StringComparison.Ordinal);
@@ -33,7 +34,7 @@ public class Nintendo3DsBootHostSourceAuditTests {
         Assert.Contains("new ::RuntimeSceneCatalogEntry(sourceEntry.SceneId, sourceEntry.CookedRelativePath)", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineCore = new Core();", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineOptions = EngineCore->get_InitializationOptions();", sourceCode, StringComparison.Ordinal);
-        Assert.Contains("EngineOptions->set_ContentRootPath(\"romfs:\");", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("EngineOptions->set_ContentStreamSource(new HostFileSystemContentStreamSource(\"romfs:\"));", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineOptions->set_SceneCatalog(BuildRuntimeSceneCatalog());", sourceCode, StringComparison.Ordinal);
         Assert.Contains("EngineOptions->set_StandardPlatformInputConfiguration(BuildStandardPlatformInputConfiguration());", sourceCode, StringComparison.Ordinal);
         Assert.Contains("#include \"platform/3ds/Nintendo3DsRenderManager3D.hpp\"", sourceCode, StringComparison.Ordinal);

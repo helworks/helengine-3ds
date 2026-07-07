@@ -9,6 +9,7 @@
 #include "Core.hpp"
 #include "CoreInitializationOptions.hpp"
 #include "EngineBinaryReadContext.hpp"
+#include "HostFileSystemContentStreamSource.hpp"
 #include "ICamera.hpp"
 #include "IDrawable3D.hpp"
 #include "IRenderQueue3D.hpp"
@@ -559,7 +560,7 @@ namespace helengine::nintendo3ds {
     void Nintendo3DsBootHost::InitializeGeneratedCore() {
         EngineCore = new Core();
         EngineOptions = EngineCore->get_InitializationOptions();
-        EngineOptions->set_ContentRootPath("romfs:");
+        EngineOptions->set_ContentStreamSource(new HostFileSystemContentStreamSource("romfs:"));
         EngineOptions->set_SceneCatalog(BuildRuntimeSceneCatalog());
         EngineOptions->set_StandardPlatformInputConfiguration(BuildStandardPlatformInputConfiguration());
         EngineOptions->set_UpdateOrderLayers(4);

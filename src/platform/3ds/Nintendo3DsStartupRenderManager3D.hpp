@@ -30,12 +30,10 @@ namespace helengine::nintendo3ds {
 
         /// Builds one lightweight runtime material from one raw material asset path.
         /// <param name="assetContentManager">Content manager that can deserialize companion shader packages.</param>
-        /// <param name="contentRootPath">Absolute packaged content root.</param>
         /// <param name="materialAssetPath">Absolute path to the serialized material asset.</param>
         /// <returns>Lightweight runtime material placeholder.</returns>
         RuntimeMaterial* BuildMaterialFromRawAsset(
             ContentManager* assetContentManager,
-            std::string contentRootPath,
             std::string materialAssetPath) override;
     };
 }

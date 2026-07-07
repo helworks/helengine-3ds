@@ -55,12 +55,9 @@ namespace helengine::nintendo3ds {
     /// Builds one lightweight runtime material from one raw material asset path.
     RuntimeMaterial* Nintendo3DsStartupRenderManager3D::BuildMaterialFromRawAsset(
         ContentManager* assetContentManager,
-        std::string contentRootPath,
         std::string materialAssetPath) {
         if (assetContentManager == nullptr) {
             throw std::invalid_argument("Nintendo 3DS startup material content manager is required.");
-        } else if (contentRootPath.empty()) {
-            throw std::invalid_argument("Nintendo 3DS startup material content root path is required.");
         } else if (materialAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS startup material asset path is required.");
         }
