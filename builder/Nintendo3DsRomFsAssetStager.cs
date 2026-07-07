@@ -7,16 +7,6 @@ namespace helengine.nintendo3ds.builder;
 /// </summary>
 public sealed class Nintendo3DsRomFsAssetStager {
     /// <summary>
-    /// Stable scene id used by the generated boot-scene startup contract.
-    /// </summary>
-    const string GeneratedBootSceneId = "GeneratedBootScene";
-
-    /// <summary>
-    /// Stable canonical RomFS path used to boot the generated startup scene on Nintendo 3DS.
-    /// </summary>
-    const string GeneratedBootSceneAliasRelativePath = "cooked/scenes/generatedbootscene.hasset";
-
-    /// <summary>
     /// Stages the cooked payload files referenced by the build manifest into RomFS.
     /// </summary>
     /// <param name="manifest">Build manifest that identifies the cooked payload files to stage.</param>
@@ -43,8 +33,6 @@ public sealed class Nintendo3DsRomFsAssetStager {
             for (int payloadIndex = 0; payloadIndex < payloadReferences.Length; payloadIndex++) {
                 StagePayloadReference(payloadReferences[payloadIndex], sourceRootPrefix, fullRomFsRootPath, stagedRelativePaths);
             }
-
-            StageGeneratedBootSceneAlias(manifest.Scenes[index], sourceRootPrefix, fullRomFsRootPath, stagedRelativePaths);
         }
 
         for (int index = 0; index < manifest.LooseAssets.Length; index++) {
@@ -91,101 +79,6 @@ public sealed class Nintendo3DsRomFsAssetStager {
         string destinationFilePath = Path.Combine(romFsRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
         string destinationDirectoryPath = Path.GetDirectoryName(destinationFilePath)
             ?? throw new InvalidOperationException("Unable to resolve the Nintendo 3DS RomFS destination directory.");
-        Directory.CreateDirectory(destinationDirectoryPath);
-        File.Copy(sourceFilePath, destinationFilePath, overwrite: true);
-    }
-
-    /// <summary>
-    /// Stages the stable generated-boot-scene alias required by Nintendo 3DS startup when the generated boot scene uses a hashed cooked payload path.
-    /// </summary>
-    /// <param name="scene">Scene whose payloads may require the stable startup-scene alias.</param>
-    /// <param name="sourceRootPrefix">Normalized source-root path with a trailing directory separator.</param>
-    /// <param name="romFsRootPath">RomFS root that receives the copied file.</param>
-    /// <param name="stagedRelativePaths">Set of already staged relative paths.</param>
-    static void StageGeneratedBootSceneAlias(
-        PlatformBuildScene scene,
-        string sourceRootPrefix,
-        string romFsRootPath,
-        HashSet<string> stagedRelativePaths) {
-        if (scene == null) {
-            throw new ArgumentNullException(nameof(scene));
-        } else if (!string.Equals(scene.SceneId, GeneratedBootSceneId, StringComparison.Ordinal)) {
-            return;
-        }
-
-        StageAliasedRelativePathCopy(
-            ResolveGeneratedBootSceneAliasSourceRelativePath(scene),
-            GeneratedBootSceneAliasRelativePath,
-            sourceRootPrefix,
-            romFsRootPath,
-            stagedRelativePaths);
-    }
-
-    /// <summary>
-    /// Resolves the cooked scene payload path that should back the stable generated-boot-scene RomFS alias.
-    /// </summary>
-    /// <param name="scene">Generated boot-scene manifest entry whose cooked path should be inspected.</param>
-    /// <returns>Canonical cooked-relative scene payload path.</returns>
-    static string ResolveGeneratedBootSceneAliasSourceRelativePath(PlatformBuildScene scene) {
-        if (scene == null) {
-            throw new ArgumentNullException(nameof(scene));
-        } else if (scene.ResolvedMetadata == null) {
-            throw new InvalidOperationException("Nintendo 3DS generated boot scene must define resolved metadata.");
-        }
-
-        for (int index = 0; index < scene.ResolvedMetadata.Length; index++) {
-            KeyValuePair<string, string> metadata = scene.ResolvedMetadata[index];
-            if (!string.Equals(metadata.Key, PlatformBuildSceneMetadataKeys.CookedRelativePath, StringComparison.OrdinalIgnoreCase)) {
-                continue;
-            } else if (string.IsNullOrWhiteSpace(metadata.Value)) {
-                throw new InvalidOperationException("Nintendo 3DS generated boot scene cooked-relative-path metadata must not be empty.");
-            }
-
-            return metadata.Value;
-        }
-
-        throw new InvalidOperationException("Nintendo 3DS generated boot scene must define cooked-relative-path metadata.");
-    }
-
-    /// <summary>
-    /// Copies one source-relative payload into one explicit RomFS alias path when that alias has not already been staged.
-    /// </summary>
-    /// <param name="sourceRelativePath">Canonical source-relative payload path inside the package root.</param>
-    /// <param name="destinationRelativePath">Canonical RomFS-relative alias path.</param>
-    /// <param name="sourceRootPrefix">Normalized source-root path with a trailing directory separator.</param>
-    /// <param name="romFsRootPath">RomFS root that receives the copied file.</param>
-    /// <param name="stagedRelativePaths">Set of already staged relative paths.</param>
-    static void StageAliasedRelativePathCopy(
-        string sourceRelativePath,
-        string destinationRelativePath,
-        string sourceRootPrefix,
-        string romFsRootPath,
-        HashSet<string> stagedRelativePaths) {
-        if (string.IsNullOrWhiteSpace(sourceRelativePath)) {
-            throw new InvalidOperationException("Nintendo 3DS aliased payload source path must be provided.");
-        } else if (string.IsNullOrWhiteSpace(destinationRelativePath)) {
-            throw new InvalidOperationException("Nintendo 3DS aliased payload destination path must be provided.");
-        } else if (stagedRelativePaths == null) {
-            throw new ArgumentNullException(nameof(stagedRelativePaths));
-        }
-
-        string normalizedSourceRelativePath = NormalizeRelativePath(sourceRelativePath);
-        string normalizedDestinationRelativePath = NormalizeRelativePath(destinationRelativePath);
-        if (!stagedRelativePaths.Add(normalizedDestinationRelativePath)) {
-            return;
-        }
-
-        string sourceRootPath = sourceRootPrefix.TrimEnd(Path.DirectorySeparatorChar);
-        string sourceFilePath = Path.GetFullPath(Path.Combine(sourceRootPath, normalizedSourceRelativePath.Replace('/', Path.DirectorySeparatorChar)));
-        if (!sourceFilePath.StartsWith(sourceRootPrefix, StringComparison.OrdinalIgnoreCase)) {
-            throw new InvalidOperationException("Nintendo 3DS aliased payload paths must stay inside the package root.");
-        } else if (!File.Exists(sourceFilePath)) {
-            throw new InvalidOperationException($"Nintendo 3DS aliased payload source '{normalizedSourceRelativePath}' was not found in the package root.");
-        }
-
-        string destinationFilePath = Path.Combine(romFsRootPath, normalizedDestinationRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        string destinationDirectoryPath = Path.GetDirectoryName(destinationFilePath)
-            ?? throw new InvalidOperationException("Unable to resolve the Nintendo 3DS aliased RomFS destination directory.");
         Directory.CreateDirectory(destinationDirectoryPath);
         File.Copy(sourceFilePath, destinationFilePath, overwrite: true);
     }

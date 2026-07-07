@@ -219,6 +219,8 @@ public class Nintendo3DsPlatformAssetBuilderTests {
         string builderWorkingRoot = Path.Combine(workingRoot, "tmp");
         string packageRoot = Nintendo3DsBuildPathConventions.ResolvePackageSourceRootPath(builderWorkingRoot);
         string generatedCoreRoot = Path.Combine(workingRoot, "generated-core");
+        string startupSceneId = "mainmenu";
+        string startupSceneRelativePath = "cooked/scenes/mainmenu.hasset";
 
         try {
             Directory.CreateDirectory(Path.Combine(packageRoot, "cooked", "scenes"));
@@ -226,7 +228,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
             File.WriteAllText(Path.Combine(generatedCoreRoot, "helcpp_config.hpp"), "// test");
             Directory.CreateDirectory(outputRoot);
             File.WriteAllBytes(
-                Path.Combine(packageRoot, "cooked", "scenes", "generatedbootscene.hasset"),
+                Path.Combine(packageRoot, "cooked", "scenes", "mainmenu.hasset"),
                 [0x47, 0x42, 0x53]);
 
             RecordingDiagnosticReporter diagnosticReporter = new();
@@ -236,15 +238,15 @@ public class Nintendo3DsPlatformAssetBuilderTests {
 
             PlatformBuildScene[] scenes = [
                 new PlatformBuildScene(
-                    Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
-                    "Generated Boot Scene",
+                    startupSceneId,
+                    "Main Menu",
                     "scene",
                     [new PlatformBuildPayloadReference(
-                        Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath,
-                        Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath)],
+                        startupSceneRelativePath,
+                        startupSceneRelativePath)],
                     [new KeyValuePair<string, string>(
                         PlatformBuildSceneMetadataKeys.CookedRelativePath,
-                        Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath)])
+                        startupSceneRelativePath)])
             ];
 
             PlatformBuildManifest manifest = new(
@@ -254,7 +256,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 "1.0.0",
                 "3ds",
                 "1",
-                Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
+                startupSceneId,
                 scenes,
                 Array.Empty<PlatformBuildAsset>(),
                 Array.Empty<PlatformBuildArtifact>(),
@@ -299,7 +301,11 @@ public class Nintendo3DsPlatformAssetBuilderTests {
             Assert.NotNull(nativeBuildExecutor.Workspace);
             Assert.Equal(Path.GetFullPath(generatedCoreRoot), nativeBuildExecutor.Workspace.GeneratedCoreRootPath);
             Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "runtime", "3ds_startup_manifest.bin")));
-            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "generatedbootscene.hasset")));
+            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "mainmenu.hasset")));
+            Assert.Contains(
+                progressReporter.Updates,
+                update => update.StageName == "Stage Packaged Content" &&
+                    update.CurrentItemIdentity == startupSceneRelativePath);
             Assert.True(File.Exists(nativeBuildExecutor.Workspace.ExportPackagePath));
             Assert.Empty(diagnosticReporter.Diagnostics);
         } finally {
@@ -321,6 +327,8 @@ public class Nintendo3DsPlatformAssetBuilderTests {
         string packageRoot = Nintendo3DsBuildPathConventions.ResolvePackageSourceRootPath(builderWorkingRoot);
         string generatedCoreRoot = Path.Combine(workingRoot, "generated-core");
         string sourceTexturePath = Path.Combine(workingRoot, "menu-logo.png");
+        string startupSceneId = "mainmenu";
+        string startupSceneRelativePath = "cooked/scenes/mainmenu.hasset";
 
         try {
             Directory.CreateDirectory(Path.Combine(packageRoot, "cooked", "scenes"));
@@ -328,7 +336,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
             File.WriteAllText(Path.Combine(generatedCoreRoot, "helcpp_config.hpp"), "// test");
             Directory.CreateDirectory(outputRoot);
             File.WriteAllBytes(
-                Path.Combine(packageRoot, "cooked", "scenes", "generatedbootscene.hasset"),
+                Path.Combine(packageRoot, "cooked", "scenes", "mainmenu.hasset"),
                 [0x47, 0x42, 0x53]);
             using (Bitmap bitmap = new(2, 1)) {
                 bitmap.SetPixel(0, 0, Color.FromArgb(255, 255, 0, 0));
@@ -343,15 +351,15 @@ public class Nintendo3DsPlatformAssetBuilderTests {
 
             PlatformBuildScene[] scenes = [
                 new PlatformBuildScene(
-                    Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
-                    "Generated Boot Scene",
+                    startupSceneId,
+                    "Main Menu",
                     "scene",
                     [new PlatformBuildPayloadReference(
-                        Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath,
-                        Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath)],
+                        startupSceneRelativePath,
+                        startupSceneRelativePath)],
                     [new KeyValuePair<string, string>(
                         PlatformBuildSceneMetadataKeys.CookedRelativePath,
-                        Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath)])
+                        startupSceneRelativePath)])
             ];
 
             PlatformCookWorkItem[] platformCookWorkItems = [
@@ -376,7 +384,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 "1.0.0",
                 "3ds",
                 "1",
-                Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
+                startupSceneId,
                 scenes,
                 Array.Empty<PlatformBuildAsset>(),
                 Array.Empty<PlatformBuildArtifact>(),
@@ -443,6 +451,8 @@ public class Nintendo3DsPlatformAssetBuilderTests {
         string packageRoot = Nintendo3DsBuildPathConventions.ResolvePackageSourceRootPath(builderWorkingRoot);
         string generatedCoreRoot = Path.Combine(workingRoot, "generated-core");
         string sourceTexturePath = Path.Combine(workingRoot, "menu-logo.png");
+        string startupSceneId = "mainmenu";
+        string startupSceneRelativePath = "cooked/scenes/mainmenu.hasset";
 
         try {
             Directory.CreateDirectory(Path.Combine(packageRoot, "cooked", "scenes"));
@@ -450,7 +460,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
             File.WriteAllText(Path.Combine(generatedCoreRoot, "helcpp_config.hpp"), "// test");
             Directory.CreateDirectory(outputRoot);
             File.WriteAllBytes(
-                Path.Combine(packageRoot, "cooked", "scenes", "generatedbootscene.hasset"),
+                Path.Combine(packageRoot, "cooked", "scenes", "mainmenu.hasset"),
                 [0x47, 0x42, 0x53]);
             using (Bitmap bitmap = new(1, 1)) {
                 bitmap.SetPixel(0, 0, Color.FromArgb(255, 255, 255, 255));
@@ -463,15 +473,15 @@ public class Nintendo3DsPlatformAssetBuilderTests {
             Nintendo3DsPlatformAssetBuilder builder = new(nativeBuildExecutor, repositoryRoot);
             PlatformBuildScene[] scenes = [
                 new PlatformBuildScene(
-                    Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
-                    "Generated Boot Scene",
+                    startupSceneId,
+                    "Main Menu",
                     "scene",
                     [new PlatformBuildPayloadReference(
-                        Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath,
-                        Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath)],
+                        startupSceneRelativePath,
+                        startupSceneRelativePath)],
                     [new KeyValuePair<string, string>(
                         PlatformBuildSceneMetadataKeys.CookedRelativePath,
-                        Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath)])
+                        startupSceneRelativePath)])
             ];
             PlatformCookWorkItem[] platformCookWorkItems = [
                 new PlatformCookWorkItem(
@@ -494,7 +504,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 "1.0.0",
                 "3ds",
                 "1",
-                Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
+                startupSceneId,
                 scenes,
                 Array.Empty<PlatformBuildAsset>(),
                 Array.Empty<PlatformBuildArtifact>(),
@@ -535,7 +545,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 diagnosticReporter,
                 CancellationToken.None);
 
-            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "generatedbootscene.hasset")));
+            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "mainmenu.hasset")));
         } finally {
             if (Directory.Exists(workingRoot)) {
                 Directory.Delete(workingRoot, recursive: true);
@@ -544,25 +554,30 @@ public class Nintendo3DsPlatformAssetBuilderTests {
     }
 
     /// <summary>
-    /// Verifies Nintendo 3DS staging creates the stable generated-boot-scene alias even when the cooked startup scene uses a hashed generated-build path.
+    /// Verifies Nintendo 3DS honors the manifest startup-scene id even when the authored startup scene is not the first scene in the manifest.
     /// </summary>
     [Fact]
-    public async Task BuildAsync_whenGeneratedBootSceneUsesGeneratedBuildPath_stagesStableStartupSceneAlias() {
+    public async Task BuildAsync_whenManifestStartupSceneIsNotFirstScene_reportsConfiguredStartupScenePath() {
         string repositoryRoot = "/mnt/c/dev/helworks/helengine-3ds";
         string workingRoot = Path.Combine(Path.GetTempPath(), "helengine-3ds-build-" + Guid.NewGuid().ToString("N"));
         string outputRoot = Path.Combine(workingRoot, "out");
         string builderWorkingRoot = Path.Combine(workingRoot, "tmp");
         string packageRoot = Nintendo3DsBuildPathConventions.ResolvePackageSourceRootPath(builderWorkingRoot);
         string generatedCoreRoot = Path.Combine(workingRoot, "generated-core");
-        string generatedBootSceneRelativePath = "cooked/scenes/.generated-build/3ds/test-build/generatedbootscene_test-build.hasset";
+        string introSceneRelativePath = "cooked/scenes/intro.hasset";
+        string startupSceneId = "mainmenu";
+        string startupSceneRelativePath = "cooked/scenes/mainmenu.hasset";
 
         try {
-            Directory.CreateDirectory(Path.Combine(packageRoot, "cooked", "scenes", ".generated-build", "3ds", "test-build"));
+            Directory.CreateDirectory(Path.Combine(packageRoot, "cooked", "scenes"));
             Directory.CreateDirectory(generatedCoreRoot);
             Directory.CreateDirectory(outputRoot);
             File.WriteAllText(Path.Combine(generatedCoreRoot, "helcpp_config.hpp"), "// test");
             File.WriteAllBytes(
-                Path.Combine(packageRoot, "cooked", "scenes", ".generated-build", "3ds", "test-build", "generatedbootscene_test-build.hasset"),
+                Path.Combine(packageRoot, "cooked", "scenes", "intro.hasset"),
+                [0x11, 0x22, 0x33]);
+            File.WriteAllBytes(
+                Path.Combine(packageRoot, "cooked", "scenes", "mainmenu.hasset"),
                 [0x47, 0x42, 0x53]);
 
             FakeNintendo3DsNativeBuildExecutor nativeBuildExecutor = new();
@@ -571,11 +586,17 @@ public class Nintendo3DsPlatformAssetBuilderTests {
             Nintendo3DsPlatformAssetBuilder builder = new(nativeBuildExecutor, repositoryRoot);
             PlatformBuildScene[] scenes = [
                 new PlatformBuildScene(
-                    Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
-                    "Generated Boot Scene",
+                    "Intro",
+                    "Intro",
                     "scene",
-                    [new PlatformBuildPayloadReference(generatedBootSceneRelativePath, generatedBootSceneRelativePath)],
-                    [new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, generatedBootSceneRelativePath)])
+                    [new PlatformBuildPayloadReference(introSceneRelativePath, introSceneRelativePath)],
+                    [new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, introSceneRelativePath)]),
+                new PlatformBuildScene(
+                    startupSceneId,
+                    "Main Menu",
+                    "scene",
+                    [new PlatformBuildPayloadReference(startupSceneRelativePath, startupSceneRelativePath)],
+                    [new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, startupSceneRelativePath)])
             ];
 
             PlatformBuildManifest manifest = new(
@@ -585,7 +606,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 "1.0.0",
                 "3ds",
                 "1",
-                Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
+                startupSceneId,
                 scenes,
                 Array.Empty<PlatformBuildAsset>(),
                 Array.Empty<PlatformBuildArtifact>(),
@@ -626,7 +647,10 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 diagnosticReporter,
                 CancellationToken.None);
 
-            Assert.True(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "generatedbootscene.hasset")));
+            Assert.Contains(
+                progressReporter.Updates,
+                update => update.StageName == "Stage Packaged Content" &&
+                    update.CurrentItemIdentity == startupSceneRelativePath);
         } finally {
             if (Directory.Exists(workingRoot)) {
                 Directory.Delete(workingRoot, recursive: true);
@@ -635,30 +659,26 @@ public class Nintendo3DsPlatformAssetBuilderTests {
     }
 
     /// <summary>
-    /// Verifies Nintendo 3DS staging resolves the stable generated-boot-scene alias from cooked-relative-path metadata rather than assuming the first payload reference is the scene payload.
+    /// Verifies Nintendo 3DS stages authored startup scenes at their declared cooked-relative path without creating a platform-owned alias.
     /// </summary>
     [Fact]
-    public async Task BuildAsync_whenGeneratedBootSceneFirstPayloadIsNotScene_usesCookedRelativePathMetadataForStableStartupSceneAlias() {
+    public async Task BuildAsync_whenStartupSceneUsesGeneratedBuildPath_stagesDeclaredScenePayloadPath() {
         string repositoryRoot = "/mnt/c/dev/helworks/helengine-3ds";
         string workingRoot = Path.Combine(Path.GetTempPath(), "helengine-3ds-build-" + Guid.NewGuid().ToString("N"));
         string outputRoot = Path.Combine(workingRoot, "out");
         string builderWorkingRoot = Path.Combine(workingRoot, "tmp");
         string packageRoot = Nintendo3DsBuildPathConventions.ResolvePackageSourceRootPath(builderWorkingRoot);
         string generatedCoreRoot = Path.Combine(workingRoot, "generated-core");
-        string generatedBootSceneRelativePath = "cooked/scenes/.generated-build/3ds/test-build/generatedbootscene_test-build.hasset";
-        string nonScenePayloadRelativePath = "cooked/animations/generatedbootscene_boot_animation.hasset";
+        string startupSceneId = "mainmenu";
+        string startupSceneRelativePath = "cooked/scenes/.generated-build/3ds/test-build/mainmenu_test-build.hasset";
 
         try {
-            Directory.CreateDirectory(Path.Combine(packageRoot, "cooked", "animations"));
             Directory.CreateDirectory(Path.Combine(packageRoot, "cooked", "scenes", ".generated-build", "3ds", "test-build"));
             Directory.CreateDirectory(generatedCoreRoot);
             Directory.CreateDirectory(outputRoot);
             File.WriteAllText(Path.Combine(generatedCoreRoot, "helcpp_config.hpp"), "// test");
             File.WriteAllBytes(
-                Path.Combine(packageRoot, "cooked", "animations", "generatedbootscene_boot_animation.hasset"),
-                [0x08, 0x08, 0x08]);
-            File.WriteAllBytes(
-                Path.Combine(packageRoot, "cooked", "scenes", ".generated-build", "3ds", "test-build", "generatedbootscene_test-build.hasset"),
+                Path.Combine(packageRoot, "cooked", "scenes", ".generated-build", "3ds", "test-build", "mainmenu_test-build.hasset"),
                 [0x47, 0x42, 0x53]);
 
             FakeNintendo3DsNativeBuildExecutor nativeBuildExecutor = new();
@@ -667,14 +687,11 @@ public class Nintendo3DsPlatformAssetBuilderTests {
             Nintendo3DsPlatformAssetBuilder builder = new(nativeBuildExecutor, repositoryRoot);
             PlatformBuildScene[] scenes = [
                 new PlatformBuildScene(
-                    Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
-                    "Generated Boot Scene",
+                    startupSceneId,
+                    "Main Menu",
                     "scene",
-                    [
-                        new PlatformBuildPayloadReference(nonScenePayloadRelativePath, nonScenePayloadRelativePath),
-                        new PlatformBuildPayloadReference(generatedBootSceneRelativePath, generatedBootSceneRelativePath)
-                    ],
-                    [new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, generatedBootSceneRelativePath)])
+                    [new PlatformBuildPayloadReference(startupSceneRelativePath, startupSceneRelativePath)],
+                    [new KeyValuePair<string, string>(PlatformBuildSceneMetadataKeys.CookedRelativePath, startupSceneRelativePath)])
             ];
 
             PlatformBuildManifest manifest = new(
@@ -684,7 +701,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 "1.0.0",
                 "3ds",
                 "1",
-                Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
+                startupSceneId,
                 scenes,
                 Array.Empty<PlatformBuildAsset>(),
                 Array.Empty<PlatformBuildArtifact>(),
@@ -727,7 +744,16 @@ public class Nintendo3DsPlatformAssetBuilderTests {
 
             Assert.Equal(
                 [0x47, 0x42, 0x53],
-                File.ReadAllBytes(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "generatedbootscene.hasset")));
+                File.ReadAllBytes(
+                    Path.Combine(
+                        nativeBuildExecutor.Workspace.RomFsRootPath,
+                        "cooked",
+                        "scenes",
+                        ".generated-build",
+                        "3ds",
+                        "test-build",
+                        "mainmenu_test-build.hasset")));
+            Assert.False(File.Exists(Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "scenes", "generatedbootscene.hasset")));
         } finally {
             if (Directory.Exists(workingRoot)) {
                 Directory.Delete(workingRoot, recursive: true);

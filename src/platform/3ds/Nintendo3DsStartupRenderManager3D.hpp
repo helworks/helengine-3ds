@@ -16,7 +16,7 @@ namespace helengine::nintendo3ds {
         /// Builds one lightweight runtime model for cooked model requests during startup-scene materialization.
         /// <param name="cookedAssetPath">Cooked model asset path requested by the runtime scene loader.</param>
         /// <returns>Lightweight runtime model placeholder.</returns>
-        RuntimeModel* BuildModelFromCooked(std::string cookedAssetPath) override;
+        RuntimeModel* BuildModelFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) override;
 
         /// Builds one lightweight runtime material from one platform-owned cooked material asset.
         /// <param name="materialAsset">Cooked material asset requested by the runtime scene loader.</param>
@@ -26,7 +26,7 @@ namespace helengine::nintendo3ds {
         /// Builds one lightweight runtime material from one cooked material asset path.
         /// <param name="cookedAssetPath">Cooked material asset path requested by the runtime scene loader.</param>
         /// <returns>Lightweight runtime material placeholder.</returns>
-        RuntimeMaterial* BuildMaterialFromCooked(std::string cookedAssetPath) override;
+        RuntimeMaterial* BuildMaterialFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) override;
 
         /// Builds one lightweight runtime material from one raw material asset path.
         /// <param name="assetContentManager">Content manager that can deserialize companion shader packages.</param>

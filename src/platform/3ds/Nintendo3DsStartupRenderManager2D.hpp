@@ -33,7 +33,7 @@ namespace helengine::nintendo3ds {
         /// Builds one Nintendo 3DS runtime texture for cooked texture requests during startup-scene materialization.
         /// <param name="cookedAssetPath">Cooked texture asset path requested by the runtime scene loader.</param>
         /// <returns>Uploaded Nintendo 3DS runtime texture.</returns>
-        RuntimeTexture* BuildTextureFromCooked(std::string cookedAssetPath) override;
+        RuntimeTexture* BuildTextureFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) override;
 
         /// Captures one sprite draw request in generated-core render order for later rendering.
         /// <param name="sprite">Sprite draw request issued by runtime code.</param>

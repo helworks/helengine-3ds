@@ -119,7 +119,8 @@ namespace helengine::nintendo3ds {
     }
 
     /// Builds one Nintendo 3DS runtime texture for cooked texture requests during startup-scene materialization.
-    RuntimeTexture* Nintendo3DsStartupRenderManager2D::BuildTextureFromCooked(std::string cookedAssetPath) {
+    RuntimeTexture* Nintendo3DsStartupRenderManager2D::BuildTextureFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) {
+        (void)contentStreamSource;
         if (cookedAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS cooked texture asset path is required.");
         }

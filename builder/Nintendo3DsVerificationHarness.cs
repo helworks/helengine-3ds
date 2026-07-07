@@ -84,24 +84,26 @@ internal static class Nintendo3DsVerificationHarness {
     }
 
     /// <summary>
-    /// Creates one 3DS build request for the generated boot-scene smoke run.
+    /// Creates one 3DS build request for the startup-scene smoke run.
     /// </summary>
     /// <param name="outputRootPath">Output root that should receive the exported package.</param>
     /// <param name="workingRootPath">Builder-owned working root used for staged 3DS inputs.</param>
     /// <returns>Prepared build request.</returns>
     static PlatformBuildRequest CreateBuildRequest(string outputRootPath, string workingRootPath) {
         string generatedCoreRootPath = Path.Combine(workingRootPath, "generated-core");
+        const string StartupSceneId = "mainmenu";
+        const string StartupSceneRelativePath = "cooked/scenes/mainmenu.hasset";
         PlatformBuildScene[] scenes = [
             new PlatformBuildScene(
-                Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
-                "Generated Boot Scene",
+                StartupSceneId,
+                "Main Menu",
                 "scene",
                 [new PlatformBuildPayloadReference(
-                    Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath,
-                    Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath)],
+                    StartupSceneRelativePath,
+                    StartupSceneRelativePath)],
                 [new KeyValuePair<string, string>(
                     PlatformBuildSceneMetadataKeys.CookedRelativePath,
-                    Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath)])
+                    StartupSceneRelativePath)])
         ];
         PlatformBuildManifest manifest = new(
             1,
@@ -110,7 +112,7 @@ internal static class Nintendo3DsVerificationHarness {
             "1.0.0",
             "3ds",
             "1",
-            Nintendo3DsStartupSceneIds.GeneratedBootSceneId,
+            StartupSceneId,
             scenes,
             Array.Empty<PlatformBuildAsset>(),
             Array.Empty<PlatformBuildArtifact>(),
@@ -147,7 +149,7 @@ internal static class Nintendo3DsVerificationHarness {
     }
 
     /// <summary>
-    /// Prepares the minimal generated boot-scene payload required by the builder smoke contract.
+    /// Prepares the minimal startup-scene payload required by the builder smoke contract.
     /// </summary>
     /// <param name="workingRootPath">Builder-owned working root that contains the staged package source root.</param>
     static void PrepareSmokeBuildInputs(string workingRootPath) {
@@ -155,17 +157,18 @@ internal static class Nintendo3DsVerificationHarness {
             throw new ArgumentException("Working root path must be provided.", nameof(workingRootPath));
         }
 
+        const string StartupSceneRelativePath = "cooked/scenes/mainmenu.hasset";
         string packageSourceRootPath = Nintendo3DsBuildPathConventions.ResolvePackageSourceRootPath(workingRootPath);
         string generatedCoreRootPath = Path.Combine(workingRootPath, "generated-core");
         Directory.CreateDirectory(generatedCoreRootPath);
         File.WriteAllText(Path.Combine(generatedCoreRootPath, "helcpp_config.hpp"), "// smoke");
-        string generatedBootScenePath = Path.Combine(
+        string startupScenePath = Path.Combine(
             packageSourceRootPath,
-            Nintendo3DsStartupSceneIds.GeneratedBootSceneCookedRelativePath.Replace('/', Path.DirectorySeparatorChar));
-        string generatedBootSceneDirectoryPath = Path.GetDirectoryName(generatedBootScenePath)
+            StartupSceneRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        string startupSceneDirectoryPath = Path.GetDirectoryName(startupScenePath)
             ?? throw new InvalidOperationException("Unable to resolve the Nintendo 3DS smoke startup-scene directory.");
-        Directory.CreateDirectory(generatedBootSceneDirectoryPath);
-        File.WriteAllBytes(generatedBootScenePath, [0x47, 0x42, 0x53]);
+        Directory.CreateDirectory(startupSceneDirectoryPath);
+        File.WriteAllBytes(startupScenePath, [0x47, 0x42, 0x53]);
     }
 
     /// <summary>

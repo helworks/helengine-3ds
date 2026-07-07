@@ -164,7 +164,7 @@ public sealed class Nintendo3DsPlatformAssetBuilder : IPlatformAssetBuilder {
             request.WorkingRoot,
             request.OutputRoot,
             request.GeneratedCoreCppRootPath);
-        PlatformBuildScene effectiveStartupScene = ResolveEffectiveStartupScene(request.Manifest);
+        PlatformBuildScene effectiveStartupScene = FindStartupScene(request.Manifest);
         string packageSourceRootPath = Nintendo3DsBuildPathConventions.ResolvePackageSourceRootPath(request.WorkingRoot);
         ValidatePackageSourceRootPath(packageSourceRootPath);
 
@@ -217,18 +217,20 @@ public sealed class Nintendo3DsPlatformAssetBuilder : IPlatformAssetBuilder {
     }
 
     /// <summary>
-    /// Resolves the generated boot scene that Nintendo 3DS builds must use as the effective startup scene.
+    /// Resolves the authored startup scene that Nintendo 3DS should stage and boot.
     /// </summary>
     /// <param name="manifest">Resolved build manifest supplied by the editor.</param>
-    /// <returns>Resolved generated boot-scene entry.</returns>
-    static PlatformBuildScene ResolveEffectiveStartupScene(PlatformBuildManifest manifest) {
+    /// <returns>Resolved startup-scene entry.</returns>
+    static PlatformBuildScene FindStartupScene(PlatformBuildManifest manifest) {
         if (manifest == null) {
             throw new ArgumentNullException(nameof(manifest));
+        } else if (string.IsNullOrWhiteSpace(manifest.StartupSceneId)) {
+            throw new InvalidOperationException("Nintendo 3DS build manifests must declare a startup scene id.");
         }
 
         for (int index = 0; index < manifest.Scenes.Length; index++) {
             PlatformBuildScene scene = manifest.Scenes[index];
-            if (!string.Equals(scene.SceneId, Nintendo3DsStartupSceneIds.GeneratedBootSceneId, StringComparison.Ordinal)) {
+            if (!string.Equals(scene.SceneId, manifest.StartupSceneId, StringComparison.Ordinal)) {
                 continue;
             }
 
@@ -236,7 +238,8 @@ public sealed class Nintendo3DsPlatformAssetBuilder : IPlatformAssetBuilder {
             return scene;
         }
 
-        throw new InvalidOperationException($"Nintendo 3DS builds require {Nintendo3DsStartupSceneIds.GeneratedBootSceneId}.");
+        throw new InvalidOperationException(
+            $"Nintendo 3DS requires startup scene '{manifest.StartupSceneId}' to be present in the build manifest.");
     }
 
     /// <summary>

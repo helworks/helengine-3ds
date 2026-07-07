@@ -23,7 +23,8 @@ namespace helengine::nintendo3ds {
     }
 
     /// Builds one lightweight runtime model for cooked model requests during startup-scene materialization.
-    RuntimeModel* Nintendo3DsStartupRenderManager3D::BuildModelFromCooked(std::string cookedAssetPath) {
+    RuntimeModel* Nintendo3DsStartupRenderManager3D::BuildModelFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) {
+        (void)contentStreamSource;
         if (cookedAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS cooked model asset path is required.");
         }
@@ -44,7 +45,8 @@ namespace helengine::nintendo3ds {
     }
 
     /// Builds one lightweight runtime material from one cooked material asset path.
-    RuntimeMaterial* Nintendo3DsStartupRenderManager3D::BuildMaterialFromCooked(std::string cookedAssetPath) {
+    RuntimeMaterial* Nintendo3DsStartupRenderManager3D::BuildMaterialFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) {
+        (void)contentStreamSource;
         if (cookedAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS cooked material asset path is required.");
         }

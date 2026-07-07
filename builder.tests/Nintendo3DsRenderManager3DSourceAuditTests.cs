@@ -19,7 +19,7 @@ public class Nintendo3DsRenderManager3DSourceAuditTests {
         Assert.Contains("class Nintendo3DsRenderManager3D final : public RenderManager3D, public IRenderVisitor3D", headerCode, StringComparison.Ordinal);
         Assert.Contains("Nintendo3DsRenderManager3D();", headerCode, StringComparison.Ordinal);
         Assert.Contains("RuntimeModel* BuildModelFromRaw(ModelAsset* data) override;", headerCode, StringComparison.Ordinal);
-        Assert.Contains("RuntimeModel* BuildModelFromCooked(std::string cookedAssetPath) override;", headerCode, StringComparison.Ordinal);
+        Assert.Contains("RuntimeModel* BuildModelFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) override;", headerCode, StringComparison.Ordinal);
         Assert.Contains("void Draw() override;", headerCode, StringComparison.Ordinal);
         Assert.Contains("void Visit(IDrawable3D* drawable) override;", headerCode, StringComparison.Ordinal);
         Assert.Contains("void BeginFrame();", headerCode, StringComparison.Ordinal);
@@ -57,13 +57,13 @@ public class Nintendo3DsRenderManager3DSourceAuditTests {
 
         Assert.Contains("#include \"ModelAssetIndexData.hpp\"", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("::ModelAssetIndexData* indexData = ::ModelAssetIndexData::Resolve(data);", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("std::vector<::float3> expandedPositions;", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("expandedPositions.push_back((*data->Positions)[sourceIndex]);", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("float3* expandedVertexData = static_cast<float3*>(linearAlloc(sizeof(float3) * expandedPositions.size()));", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("std::memcpy(expandedVertexData, expandedPositions.data(), sizeof(float3) * expandedPositions.size());", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("GSPGPU_FlushDataCache(expandedVertexData, sizeof(float3) * expandedPositions.size());", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("new Nintendo3DsRuntimeModel(expandedVertexData, static_cast<int32_t>(expandedPositions.size()))", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("float3* GetVertexData() const;", runtimeModelHeaderCode, StringComparison.Ordinal);
+        Assert.Contains("std::vector<Nintendo3DsModelVertex> expandedVertices;", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("expandedVertices.push_back(vertex);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("Nintendo3DsModelVertex* expandedVertexData = static_cast<Nintendo3DsModelVertex*>(linearAlloc(sizeof(Nintendo3DsModelVertex) * expandedVertices.size()));", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("std::memcpy(expandedVertexData, expandedVertices.data(), sizeof(Nintendo3DsModelVertex) * expandedVertices.size());", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("GSPGPU_FlushDataCache(expandedVertexData, sizeof(Nintendo3DsModelVertex) * expandedVertices.size());", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("new Nintendo3DsRuntimeModel(expandedVertexData, static_cast<int32_t>(expandedVertices.size()))", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("Nintendo3DsModelVertex* GetVertexData() const;", runtimeModelHeaderCode, StringComparison.Ordinal);
         Assert.Contains("int32_t GetVertexCount() const;", runtimeModelHeaderCode, StringComparison.Ordinal);
         Assert.Contains("void ReleaseModel(RuntimeModel* model) override;", rendererHeaderCode, StringComparison.Ordinal);
     }
@@ -77,26 +77,25 @@ public class Nintendo3DsRenderManager3DSourceAuditTests {
         string rendererSourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsRenderManager3D.cpp");
         string rendererSourceCode = File.ReadAllText(rendererSourcePath);
 
-        Assert.Contains("#include \"solid_color_shbin.h\"", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("DVLB_ParseFile((u32*)solid_color_shbin, solid_color_shbin_size);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("#include \"lit_color_shbin.h\"", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("DVLB_ParseFile((u32*)lit_color_shbin, lit_color_shbin_size);", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("shaderProgramInit(&Program);", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("shaderProgramSetVsh(&Program, &VertexShaderDvlb->DVLE[0]);", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("UniformLocationProjection = shaderInstanceGetUniformLocation(Program.vertexShader, \"projection\");", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("UniformLocationModelView = shaderInstanceGetUniformLocation(Program.vertexShader, \"modelView\");", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("AttrInfo_AddLoader(attrInfo, 0, GPU_FLOAT, 3);", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("AttrInfo_AddFixed(attrInfo, 1);", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("C3D_FixedAttribSet(1, 1.0f, 1.0f, 1.0f, 1.0f);", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_ALL);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("AttrInfo_AddLoader(attrInfo, 1, GPU_FLOAT, 3);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("C3D_CullFace(GPU_CULL_NONE);", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("C3D_FrameDrawOn(target);", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("BufInfo_Add(bufInfo, vertexData, sizeof(float3), 1, 0x0);", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("GSPGPU_FlushDataCache(vertexData, sizeof(float3) * static_cast<uint32_t>(submittedVertexCount));", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("BufInfo_Add(bufInfo, vertexData, sizeof(Nintendo3DsModelVertex), 1, 0x0);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("BufInfo_Add(bufInfo, reinterpret_cast<const uint8_t*>(vertexData) + (sizeof(float) * 5), sizeof(Nintendo3DsModelVertex), 1, 0x1);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("GSPGPU_FlushDataCache(vertexData, sizeof(Nintendo3DsModelVertex) * static_cast<uint32_t>(submittedVertexCount));", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("Mtx_PerspTilt(", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("&ProjectionMatrix,", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("Nintendo3DsPerspectiveFieldOfViewRadians,", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("C3D_AspectRatioTop,", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, UniformLocationProjection, &ProjectionMatrix);", rendererSourceCode, StringComparison.Ordinal);
-        Assert.Contains("C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, UniformLocationModelView, &gpuModelView);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("ApplyCommonLightingUniforms(", rendererSourceCode, StringComparison.Ordinal);
         Assert.Contains("C3D_DrawArrays(GPU_TRIANGLES, submesh->get_IndexStart(), submesh->get_IndexCount());", rendererSourceCode, StringComparison.Ordinal);
     }
 
