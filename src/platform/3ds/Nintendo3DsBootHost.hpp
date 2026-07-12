@@ -12,6 +12,7 @@
 class Core;
 class CoreInitializationOptions;
 class ICamera;
+class IAudioBackend;
 class PlatformInfo;
 class RenderTarget;
 class StandardPlatformInputConfiguration;
@@ -19,6 +20,7 @@ class StandardPlatformInputConfiguration;
 
 namespace helengine::nintendo3ds {
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
+    class Nintendo3DsAudioBackend;
     class Nintendo3DsStartupInputBackend;
     class Nintendo3DsStartupRenderManager2D;
     class Nintendo3DsRenderManager3D;
@@ -115,6 +117,9 @@ namespace helengine::nintendo3ds {
 
         /// Stores the Nintendo 3DS startup input backend used during startup-scene materialization.
         Nintendo3DsStartupInputBackend* EngineInputBackend;
+
+        /// Stores the Nintendo 3DS audio backend used by generated-core scene audio playback.
+        Nintendo3DsAudioBackend* EngineAudioBackend;
 
         /// Stores the top-screen render-target metadata used by camera-bound viewport layout.
         ::RenderTarget* TopScreenRenderTargetMetadata;

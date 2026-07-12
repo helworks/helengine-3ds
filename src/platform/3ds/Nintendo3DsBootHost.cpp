@@ -26,6 +26,7 @@
 #include "StandardPlatformActionBinding.hpp"
 #include "StandardPlatformInputConfiguration.hpp"
 #include "platform/3ds/Nintendo3DsPackagedAssetLoader.hpp"
+#include "platform/3ds/audio/Nintendo3DsAudioBackend.hpp"
 #include "platform/3ds/Nintendo3DsStartupInputBackend.hpp"
 #include "platform/3ds/Nintendo3DsStartupRenderManager2D.hpp"
 #include "platform/3ds/Nintendo3DsRenderManager3D.hpp"
@@ -314,6 +315,7 @@ namespace helengine::nintendo3ds {
         , EngineRenderManager3D(nullptr)
         , EngineRenderManager2D(nullptr)
         , EngineInputBackend(nullptr)
+        , EngineAudioBackend(nullptr)
         , TopScreenRenderTargetMetadata(nullptr)
         , BottomScreenRenderTargetMetadata(nullptr)
 #endif
@@ -572,6 +574,7 @@ namespace helengine::nintendo3ds {
         EngineRenderManager3D = new Nintendo3DsRenderManager3D();
         EngineRenderManager2D = new Nintendo3DsStartupRenderManager2D();
         EngineInputBackend = new Nintendo3DsStartupInputBackend();
+        EngineAudioBackend = new Nintendo3DsAudioBackend();
         const char* runtimePlatformVersion = he_get_runtime_platform_version();
         EnginePlatformInfo = new PlatformInfo("3ds", runtimePlatformVersion);
         EngineRenderManager3D->AddWindow(0, 400, 240);
@@ -582,6 +585,7 @@ namespace helengine::nintendo3ds {
         BottomScreenRenderTargetMetadata->set_Width(320);
         BottomScreenRenderTargetMetadata->set_Height(240);
         EngineCore->Initialize(EngineRenderManager3D, EngineRenderManager2D, EngineInputBackend, EnginePlatformInfo, EngineOptions);
+        EngineCore->SetAudioBackend(EngineAudioBackend);
         RegisterGeneratedRuntimeModules(EngineCore);
 
         ActiveTopScreenColor = GeneratedCoreTopScreenColor;
@@ -697,6 +701,8 @@ namespace helengine::nintendo3ds {
     /// Shuts down the renderer stack in reverse initialization order.
     void Nintendo3DsBootHost::ShutdownRenderer() {
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
+        delete EngineAudioBackend;
+        EngineAudioBackend = nullptr;
         delete EngineInputBackend;
         EngineInputBackend = nullptr;
         delete EngineRenderManager2D;

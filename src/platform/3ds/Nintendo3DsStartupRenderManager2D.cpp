@@ -14,6 +14,7 @@
 #include "FontAsset.hpp"
 #include "FontChar.hpp"
 #include "FontInfo.hpp"
+#include "IContentStreamSource.hpp"
 #include "IDrawable2D.hpp"
 #include "ICamera.hpp"
 #include "IRenderQueue2D.hpp"
@@ -120,7 +121,6 @@ namespace helengine::nintendo3ds {
 
     /// Builds one Nintendo 3DS runtime texture for cooked texture requests during startup-scene materialization.
     RuntimeTexture* Nintendo3DsStartupRenderManager2D::BuildTextureFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) {
-        (void)contentStreamSource;
         if (cookedAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS cooked texture asset path is required.");
         }
@@ -128,7 +128,16 @@ namespace helengine::nintendo3ds {
         ::FileStream* stream = nullptr;
         ::Asset* asset = nullptr;
         try {
-            stream = ::File::OpenRead(cookedAssetPath);
+            if (contentStreamSource != nullptr) {
+                ::Stream* contentStream = contentStreamSource->OpenRead(cookedAssetPath);
+                stream = dynamic_cast<::FileStream*>(contentStream);
+                if (stream == nullptr) {
+                    delete contentStream;
+                    throw std::runtime_error("Nintendo 3DS cooked texture stream must be one FileStream: " + cookedAssetPath);
+                }
+            } else {
+                stream = ::File::OpenRead(cookedAssetPath);
+            }
             asset = ::AssetSerializer::Deserialize(stream);
             delete stream;
             stream = nullptr;

@@ -256,7 +256,8 @@ namespace helengine::nintendo3ds {
         void AttachCookedDiffuseTexture(
             class Nintendo3DsRuntimeMaterial* runtimeMaterial,
             PlatformMaterialAsset* materialAsset,
-            const std::string& cookedMaterialAssetPath);
+            const std::string& cookedMaterialAssetPath,
+            IContentStreamSource* contentStreamSource);
 
         /// Returns whether the supplied camera targets the Nintendo 3DS top screen.
         /// <param name="camera">Camera being classified for present-time playback.</param>

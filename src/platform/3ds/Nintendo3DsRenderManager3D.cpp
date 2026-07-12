@@ -16,6 +16,7 @@
 #include "DirectionalLightComponent.hpp"
 #include "Entity.hpp"
 #include "ICamera.hpp"
+#include "IContentStreamSource.hpp"
 #include "IRenderQueue3D.hpp"
 #include "MeshComponent.hpp"
 #include "ModelAsset.hpp"
@@ -43,6 +44,24 @@
 #include "system/io/file.hpp"
 
 namespace helengine::nintendo3ds {
+    namespace {
+        /// Opens one cooked asset stream through the runtime content source when available.
+        ::FileStream* OpenCookedAssetStream(const std::string& cookedAssetPath, IContentStreamSource* contentStreamSource) {
+            if (contentStreamSource != nullptr) {
+                ::Stream* stream = contentStreamSource->OpenRead(cookedAssetPath);
+                ::FileStream* fileStream = dynamic_cast<::FileStream*>(stream);
+                if (fileStream == nullptr) {
+                    delete stream;
+                    throw std::runtime_error("Nintendo 3DS cooked asset stream must be one FileStream: " + cookedAssetPath);
+                }
+
+                return fileStream;
+            }
+
+            return ::File::OpenRead(cookedAssetPath);
+        }
+    }
+
     namespace {
         /// Stores the Nintendo 3DS top-screen width in pixels.
         constexpr int32_t Nintendo3DsTopScreenWidth = 400;
@@ -291,7 +310,6 @@ namespace helengine::nintendo3ds {
 
     /// Builds one Nintendo 3DS runtime model for cooked model requests during startup-scene materialization.
     RuntimeModel* Nintendo3DsRenderManager3D::BuildModelFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) {
-        (void)contentStreamSource;
         if (cookedAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS cooked model asset path is required.");
         }
@@ -299,7 +317,7 @@ namespace helengine::nintendo3ds {
         ::FileStream* stream = nullptr;
         ::Asset* asset = nullptr;
         try {
-            stream = ::File::OpenRead(cookedAssetPath);
+            stream = OpenCookedAssetStream(cookedAssetPath, contentStreamSource);
             asset = ::AssetSerializer::Deserialize(stream);
             delete stream;
             stream = nullptr;
@@ -350,7 +368,6 @@ namespace helengine::nintendo3ds {
 
     /// Builds one lightweight runtime material from one cooked material asset path.
     RuntimeMaterial* Nintendo3DsRenderManager3D::BuildMaterialFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) {
-        (void)contentStreamSource;
         if (cookedAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS cooked material asset path is required.");
         }
@@ -358,7 +375,7 @@ namespace helengine::nintendo3ds {
         ::FileStream* stream = nullptr;
         ::Asset* asset = nullptr;
         try {
-            stream = ::File::OpenRead(cookedAssetPath);
+            stream = OpenCookedAssetStream(cookedAssetPath, contentStreamSource);
             asset = ::AssetSerializer::Deserialize(stream);
             delete stream;
             stream = nullptr;
@@ -371,7 +388,7 @@ namespace helengine::nintendo3ds {
             asset = nullptr;
             Nintendo3DsRuntimeMaterial* runtimeMaterial = static_cast<Nintendo3DsRuntimeMaterial*>(BuildMaterialFromCooked(cookedMaterialAsset));
             try {
-                AttachCookedDiffuseTexture(runtimeMaterial, cookedMaterialAsset, cookedAssetPath);
+                AttachCookedDiffuseTexture(runtimeMaterial, cookedMaterialAsset, cookedAssetPath, contentStreamSource);
             } catch (...) {
                 delete runtimeMaterial;
                 delete cookedMaterialAsset;
@@ -802,7 +819,8 @@ namespace helengine::nintendo3ds {
     void Nintendo3DsRenderManager3D::AttachCookedDiffuseTexture(
         Nintendo3DsRuntimeMaterial* runtimeMaterial,
         PlatformMaterialAsset* materialAsset,
-        const std::string& cookedMaterialAssetPath) {
+        const std::string& cookedMaterialAssetPath,
+        IContentStreamSource* contentStreamSource) {
         if (runtimeMaterial == nullptr) {
             throw std::invalid_argument("Nintendo 3DS runtime material is required.");
         } else if (materialAsset == nullptr) {
@@ -821,7 +839,7 @@ namespace helengine::nintendo3ds {
         ::TextureAsset* cookedTextureAsset = nullptr;
         Nintendo3DsRuntimeTexture* runtimeTexture = nullptr;
         try {
-            textureStream = ::File::OpenRead(cookedTextureAssetPath);
+            textureStream = OpenCookedAssetStream(cookedTextureAssetPath, contentStreamSource);
             textureAssetPayload = ::AssetSerializer::Deserialize(textureStream);
             delete textureStream;
             textureStream = nullptr;

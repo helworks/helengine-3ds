@@ -20,7 +20,8 @@ TARGET := helengine_3ds
 BUILD := build
 SOURCES := \
 	src \
-	src/platform/3ds
+	src/platform/3ds \
+	src/platform/3ds/audio
 INCLUDES := \
 	src
 GENERATED_CORE_SOURCE_DIRS :=
