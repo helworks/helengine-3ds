@@ -4,21 +4,80 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <new>
 #include <stdexcept>
 #include <utility>
 
 namespace helengine::nintendo3ds {
+    namespace {
+        constexpr const char* AudioTracePath = "sdmc:/helengine_3ds_audio_trace.txt";
+        constexpr const char* AudioDiagnosticLogPath = "sdmc:/helengine_3ds_last_error.txt";
+        constexpr Result NdspMissingDspComponentResult = static_cast<Result>(0xD880A7FAu);
+
+        void ResetAudioTrace() {
+            std::FILE* file = std::fopen(AudioTracePath, "wb");
+            if (file != nullptr) {
+                std::fclose(file);
+            }
+        }
+
+        void AppendAudioTrace(const std::string& message) {
+            std::FILE* file = std::fopen(AudioTracePath, "ab");
+            if (file == nullptr) {
+                return;
+            }
+
+            std::fwrite(message.c_str(), 1, message.size(), file);
+            const char newline = '\n';
+            std::fwrite(&newline, 1, 1, file);
+            std::fclose(file);
+        }
+
+        void WriteAudioDiagnosticLog(const char* phase, const std::string& message) {
+            std::FILE* file = std::fopen(AudioDiagnosticLogPath, "wb");
+            if (file == nullptr) {
+                return;
+            }
+
+            const char* resolvedPhase = phase != nullptr ? phase : "audio-init";
+            std::fprintf(file, "phase=%s\nmessage=%s\n", resolvedPhase, message.c_str());
+            std::fclose(file);
+        }
+
+        std::string FormatResultHex(Result result) {
+            char buffer[16] = {};
+            std::snprintf(buffer, sizeof(buffer), "0x%08X", static_cast<unsigned int>(static_cast<uint32_t>(result)));
+            return std::string(buffer);
+        }
+
+        std::string BuildNdspInitializationFailureMessage(Result result) {
+            std::string message = "Nintendo 3DS NDSP initialization failed.";
+            message += "\nresult=" + std::to_string(static_cast<int32_t>(result));
+            message += "\nhex=" + FormatResultHex(result);
+            if (result == NdspMissingDspComponentResult) {
+                message += "\nreason=NDSP DSP component was not found.";
+                message += "\nexpected=/3ds/dspfirm.cdc or hb:ndsp";
+            }
+
+            return message;
+        }
+    }
+
     Nintendo3DsAudioBackend::Nintendo3DsAudioBackend()
         : NdspInitialized(false)
+        , NdspInitializationPermanentlyUnavailable(false)
         , NextVoiceId(0)
         , HasActiveVoice(false)
+        , LastNdspInitializationResult(0)
         , ActiveVoice()
         , BusGainsById()
         , PausedBusIds()
         , WaveBuffers()
         , OutputBuffers() {
+        ResetAudioTrace();
+        AppendAudioTrace("ctor");
         BusGainsById.emplace("master", 1.0f);
         BusGainsById.emplace("music", 1.0f);
         BusGainsById.emplace("sfx", 1.0f);
@@ -27,6 +86,7 @@ namespace helengine::nintendo3ds {
             OutputBuffers[bufferIndex] = static_cast<std::int16_t*>(
                 linearAlloc(sizeof(std::int16_t) * BufferFrameCount * MaxSupportedChannelCount));
             if (OutputBuffers[bufferIndex] == nullptr) {
+                AppendAudioTrace("linearAlloc failed");
                 ReleaseWaveBuffers();
                 throw std::bad_alloc();
             }
@@ -49,6 +109,17 @@ namespace helengine::nintendo3ds {
         if (asset == nullptr) {
             throw std::invalid_argument("asset");
         }
+        AppendAudioTrace(
+            std::string("play asset=")
+            + asset->Id
+            + " sampleRate="
+            + std::to_string(asset->SampleRate)
+            + " channels="
+            + std::to_string(asset->Channels)
+            + " encoding="
+            + asset->EncodingFamilyId
+            + " bytes="
+            + std::to_string(asset->EncodedBytes != nullptr ? asset->EncodedBytes->Length : 0));
         if (asset->SampleRate <= 0) {
             throw std::runtime_error("Nintendo 3DS audio playback requires a positive sample rate.");
         }
@@ -86,6 +157,7 @@ namespace helengine::nintendo3ds {
         HasActiveVoice = true;
 
         if (TryInitializeNdsp()) {
+            AppendAudioTrace("play ndsp initialized");
             ConfigureChannel(ActiveVoice);
             for (int bufferIndex = 0; bufferIndex < BufferCount; bufferIndex++) {
                 if (!FillAndQueueBuffer(bufferIndex)) {
@@ -94,12 +166,24 @@ namespace helengine::nintendo3ds {
             }
 
             if (!HasQueuedWaveBuffers()) {
+                AppendAudioTrace("play no queued buffers");
                 ReleaseActiveVoice();
                 throw std::runtime_error("Nintendo 3DS audio playback could not queue any NDSP wave buffers.");
             }
+        } else if (NdspInitializationPermanentlyUnavailable) {
+            AppendAudioTrace("play unavailable release");
+            ReleaseActiveVoice();
+            return voice.VoiceId;
         }
 
         ApplyActiveVoiceState();
+        AppendAudioTrace(
+            std::string("play queued voiceId=")
+            + std::to_string(voice.VoiceId)
+            + " paused="
+            + (IsBusPaused(voice.BusId) ? "true" : "false")
+            + " gain="
+            + std::to_string(ResolveCombinedGain(voice.BusId, voice.BaseGain)));
         return voice.VoiceId;
     }
 
@@ -128,6 +212,10 @@ namespace helengine::nintendo3ds {
     }
 
     bool Nintendo3DsAudioBackend::IsPlaying(int32_t voiceId) {
+        if (!NdspInitialized && NdspInitializationPermanentlyUnavailable) {
+            return false;
+        }
+
         return HasActiveVoice && ActiveVoice.VoiceId == voiceId && (ActiveVoice.Playing || HasQueuedWaveBuffers());
     }
 
@@ -136,10 +224,18 @@ namespace helengine::nintendo3ds {
             return;
         }
         if (!NdspInitialized) {
-            if (!TryInitializeNdsp()) {
+            if (NdspInitializationPermanentlyUnavailable) {
+                AppendAudioTrace("update unavailable release");
+                ReleaseActiveVoice();
                 return;
             }
 
+            if (!TryInitializeNdsp()) {
+                AppendAudioTrace("update ndsp init deferred");
+                return;
+            }
+
+            AppendAudioTrace("update ndsp initialized");
             ConfigureChannel(ActiveVoice);
             for (int bufferIndex = 0; bufferIndex < BufferCount; bufferIndex++) {
                 if (!FillAndQueueBuffer(bufferIndex)) {
@@ -148,6 +244,7 @@ namespace helengine::nintendo3ds {
             }
 
             if (!HasQueuedWaveBuffers()) {
+                AppendAudioTrace("update no queued buffers");
                 ReleaseActiveVoice();
                 return;
             }
@@ -158,11 +255,13 @@ namespace helengine::nintendo3ds {
 
         for (int bufferIndex = 0; bufferIndex < BufferCount; bufferIndex++) {
             if (WaveBuffers[bufferIndex].status == NDSP_WBUF_DONE) {
+                AppendAudioTrace(std::string("buffer done index=") + std::to_string(bufferIndex));
                 FillAndQueueBuffer(bufferIndex);
             }
         }
 
         if (ActiveVoice.ReachedEndOfSource && !HasQueuedWaveBuffers()) {
+            AppendAudioTrace("voice reached end");
             ReleaseActiveVoice();
         }
     }
@@ -171,13 +270,29 @@ namespace helengine::nintendo3ds {
         if (NdspInitialized) {
             return true;
         }
+        if (NdspInitializationPermanentlyUnavailable) {
+            return false;
+        }
 
         Result initResult = ndspInit();
         if (R_FAILED(initResult)) {
+            if (LastNdspInitializationResult != initResult) {
+                const std::string failureMessage = BuildNdspInitializationFailureMessage(initResult);
+                AppendAudioTrace(failureMessage);
+                WriteAudioDiagnosticLog("audio-init", failureMessage);
+            }
+
+            LastNdspInitializationResult = initResult;
+            if (initResult == NdspMissingDspComponentResult) {
+                NdspInitializationPermanentlyUnavailable = true;
+            }
+
             return false;
         }
 
         NdspInitialized = true;
+        LastNdspInitializationResult = 0;
+        AppendAudioTrace("ndspInit ok");
         ndspSetOutputMode(NDSP_OUTPUT_STEREO);
         ndspSetMasterVol(1.0f);
         ndspChnReset(ChannelId);
@@ -215,6 +330,13 @@ namespace helengine::nintendo3ds {
         mix[1] = combinedGain;
         ndspChnSetMix(ChannelId, mix);
         ndspChnSetPaused(ChannelId, shouldPause);
+        AppendAudioTrace(
+            std::string("apply paused=")
+            + (shouldPause ? "true" : "false")
+            + " gain="
+            + std::to_string(combinedGain)
+            + " bus="
+            + ActiveVoice.BusId);
     }
 
     bool Nintendo3DsAudioBackend::FillAndQueueBuffer(int bufferIndex) {
@@ -259,6 +381,7 @@ namespace helengine::nintendo3ds {
 
         if (framesWritten <= 0) {
             ActiveVoice.ReachedEndOfSource = true;
+            AppendAudioTrace(std::string("queue empty buffer index=") + std::to_string(bufferIndex));
             return false;
         }
 
@@ -266,6 +389,15 @@ namespace helengine::nintendo3ds {
         waveBuffer.looping = false;
         DSP_FlushDataCache(outputBuffer, static_cast<u32>(framesWritten * channelCount * sizeof(std::int16_t)));
         ndspChnWaveBufAdd(ChannelId, &waveBuffer);
+        AppendAudioTrace(
+            std::string("queue buffer index=")
+            + std::to_string(bufferIndex)
+            + " frames="
+            + std::to_string(framesWritten)
+            + " cursor="
+            + std::to_string(ActiveVoice.SourceFrameCursor)
+            + " loop="
+            + (ActiveVoice.Loop ? "true" : "false"));
 
         ActiveVoice.ReachedEndOfSource = reachedEndOfSource;
         return true;
@@ -288,6 +420,9 @@ namespace helengine::nintendo3ds {
             ndspChnReset(ChannelId);
         }
 
+        if (HasActiveVoice) {
+            AppendAudioTrace(std::string("release voiceId=") + std::to_string(ActiveVoice.VoiceId));
+        }
         ResetWaveBuffers();
         HasActiveVoice = false;
         ActiveVoice = {};

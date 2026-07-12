@@ -37,6 +37,15 @@ docker run --rm -v "$PWD":/workspace -v /tmp/helengine-3ds-manual:/workspace-sta
 
 Load `build/helengine_3ds.3dsx` in Citra or Lime3DS. The expected result is a red top screen and a blue bottom screen. If the manifest is missing or invalid, the runtime remains on the green/cyan bootstrap frame.
 
+## Audio In Emulator
+
+Nintendo 3DS homebrew audio runs through libctru NDSP. Direct `.3dsx` launches in Azahar, Citra, or Lime3DS need the DSP component to be available through one of these paths:
+
+- `/3ds/dspfirm.cdc` on the emulated SD card
+- `hb:ndsp` supplied by the Homebrew Launcher environment
+
+If NDSP cannot initialize, the runtime keeps rendering but audio will stay silent and the host writes `sdmc:/helengine_3ds_last_error.txt` with `phase=audio-init` plus the failing result code.
+
 ## DS Scene Contract Verification
 
 The current 3DS runtime follows the Nintendo DS startup-scene contract at the platform seam:

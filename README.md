@@ -18,6 +18,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\launch_in_emulator
   -ArtifactPath ..\helprojs\city\3ds-build\helengine_3ds.3dsx
 ```
 
+Direct `.3dsx` audio playback depends on the Nintendo 3DS DSP component being available to libctru NDSP. In Azahar or Citra that means providing `/3ds/dspfirm.cdc` on the emulated SD card or launching through a homebrew environment that exposes `hb:ndsp`.
+
 ## More Docs
 
 - [Docker Build Notes](docs/Docker.md)

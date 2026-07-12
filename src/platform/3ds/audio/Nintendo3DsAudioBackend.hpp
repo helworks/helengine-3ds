@@ -44,8 +44,9 @@ namespace helengine::nintendo3ds {
 
     private:
         static constexpr int ChannelId = 0;
-        static constexpr int BufferCount = 2;
-        static constexpr int BufferFrameCount = 2048;
+        // Keep a deeper startup queue so early 3DS scene bring-up stalls do not underrun music immediately.
+        static constexpr int BufferCount = 4;
+        static constexpr int BufferFrameCount = 4096;
         static constexpr int MaxSupportedChannelCount = 2;
 
         /// <summary>
@@ -92,8 +93,10 @@ namespace helengine::nintendo3ds {
         bool IsBusPaused(const std::string& busId) const;
 
         bool NdspInitialized;
+        bool NdspInitializationPermanentlyUnavailable;
         int32_t NextVoiceId;
         bool HasActiveVoice;
+        Result LastNdspInitializationResult;
         ActiveVoiceState ActiveVoice;
         std::unordered_map<std::string, float> BusGainsById;
         std::unordered_set<std::string> PausedBusIds;
