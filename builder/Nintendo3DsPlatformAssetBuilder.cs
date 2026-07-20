@@ -135,7 +135,7 @@ public sealed class Nintendo3DsPlatformAssetBuilder : IPlatformAssetBuilder {
     /// <param name="diagnosticReporter">Diagnostic reporter that receives streamed diagnostics.</param>
     /// <param name="cancellationToken">Cancellation token used to stop the build cooperatively.</param>
     /// <returns>Final Nintendo 3DS build report for the supplied request.</returns>
-    public async Task<PlatformBuildReport> BuildAsync(
+    public Task<PlatformBuildReport> BuildAsync(
         PlatformBuildRequest request,
         IPlatformBuildProgressReporter progressReporter,
         IPlatformBuildDiagnosticReporter diagnosticReporter,
@@ -198,7 +198,7 @@ public sealed class Nintendo3DsPlatformAssetBuilder : IPlatformAssetBuilder {
             [],
             BuildSceneOutcomes(request.Manifest.Scenes),
             BuildLooseAssetOutcomes(request.Manifest.LooseAssets));
-        return await Task.FromResult(report);
+        return Task.FromResult(report);
     }
 
     /// <summary>

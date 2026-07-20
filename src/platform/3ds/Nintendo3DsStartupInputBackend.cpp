@@ -11,6 +11,9 @@ namespace helengine::nintendo3ds {
         /// Stores the Nintendo 3DS circle pad range used to normalize analog values into the generated-core signed-stick range.
         constexpr double Nintendo3DsCirclePadRange = 155.0;
 
+        /// Stores the New Nintendo 3DS C-stick range used to normalize analog values into the generated-core signed-stick range.
+        constexpr double Nintendo3DsCStickRange = 145.0;
+
         /// Stores the generated-core full-scale signed analog magnitude.
         constexpr double Nintendo3DsAnalogFullScale = 32767.0;
     }
@@ -40,8 +43,14 @@ namespace helengine::nintendo3ds {
         u32 heldKeys = hidKeysHeld();
         touchPosition touch {};
         circlePosition circlePad {};
+#ifdef KEY_CSTICK_LEFT
+        circlePosition cStick {};
+#endif
         hidTouchRead(&touch);
         hidCircleRead(&circlePad);
+#ifdef KEY_CSTICK_LEFT
+        irrstCstickRead(&cStick);
+#endif
 
         const bool touchIsDown = (heldKeys & KEY_TOUCH) != 0;
 
@@ -114,19 +123,8 @@ namespace helengine::nintendo3ds {
         gamepadState.RightStickY = 0;
 
 #ifdef KEY_CSTICK_LEFT
-        if ((heldKeys & KEY_CSTICK_LEFT) != 0) {
-            gamepadState.RightStickX = -32767;
-        } else if ((heldKeys & KEY_CSTICK_RIGHT) != 0) {
-            gamepadState.RightStickX = 32767;
-        }
-#endif
-
-#ifdef KEY_CSTICK_DOWN
-        if ((heldKeys & KEY_CSTICK_DOWN) != 0) {
-            gamepadState.RightStickY = -32767;
-        } else if ((heldKeys & KEY_CSTICK_UP) != 0) {
-            gamepadState.RightStickY = 32767;
-        }
+        gamepadState.RightStickX = static_cast<int16_t>(std::clamp(static_cast<double>(cStick.dx) / Nintendo3DsCStickRange, -1.0, 1.0) * Nintendo3DsAnalogFullScale);
+        gamepadState.RightStickY = static_cast<int16_t>(std::clamp(static_cast<double>(cStick.dy) / Nintendo3DsCStickRange, -1.0, 1.0) * Nintendo3DsAnalogFullScale);
 #endif
 
         gamepadStorage->Data[0] = gamepadState;

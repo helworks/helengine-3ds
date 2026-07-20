@@ -51,4 +51,19 @@ public class Nintendo3DsStartupInputBackendSourceAuditTests {
         Assert.Contains("KEY_ZL", sourceCode, StringComparison.Ordinal);
         Assert.Contains("KEY_ZR", sourceCode, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Verifies the New Nintendo 3DS analog C-stick is exposed through the shared right-stick camera axes.
+    /// </summary>
+    [Fact]
+    public void Source_whenBackendCapturesFrames_mapsAnalogCStickToRightStickAxes() {
+        string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        string sourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsStartupInputBackend.cpp");
+        string sourceCode = File.ReadAllText(sourcePath);
+
+        Assert.Contains("circlePosition cStick {};", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("irrstCstickRead(&cStick);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("gamepadState.RightStickX = static_cast<int16_t>", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("gamepadState.RightStickY = static_cast<int16_t>", sourceCode, StringComparison.Ordinal);
+    }
 }

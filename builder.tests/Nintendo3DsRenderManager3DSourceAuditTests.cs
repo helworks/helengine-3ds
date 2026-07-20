@@ -69,6 +69,35 @@ public class Nintendo3DsRenderManager3DSourceAuditTests {
     }
 
     /// <summary>
+    /// Verifies cooked 3DS asset loading releases deserialized payload arrays instead of retaining every scene's native buffers.
+    /// </summary>
+    [Fact]
+    public void Source_whenCookedAssetsAreReleased_releasesNestedModelAndTexturePayloads() {
+        string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        string rendererSourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsRenderManager3D.cpp");
+        string rendererSourceCode = File.ReadAllText(rendererSourcePath);
+
+        Assert.Contains("ReleaseCookedModelAsset(cookedModelAsset);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("ReleaseCookedTextureAsset(cookedTextureAsset);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("DeleteGeneratedArray(colors);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("DeleteGeneratedArray(paletteColors);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("Array<ModelSubmeshAsset*>::Empty()", rendererSourceCode, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies cooked material-relative texture paths work with the content-relative paths emitted for 3DS packages.
+    /// </summary>
+    [Fact]
+    public void Source_whenCookedMaterialPathIsContentRelative_resolvesAgainstCookedRoot() {
+        string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        string rendererSourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsRenderManager3D.cpp");
+        string rendererSourceCode = File.ReadAllText(rendererSourcePath);
+
+        Assert.Contains("normalizedMaterialAssetPath.rfind(\"cooked/\", 0) == 0", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("return \"cooked/\" + normalizedContentRelativePath;", rendererSourceCode, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies the Nintendo 3DS renderer initializes one citro3d shader program and submits solid-color triangle draws through the active top-screen pass.
     /// </summary>
     [Fact]

@@ -1,3 +1,5 @@
+using helengine.baseplatform.Builders;
+
 namespace helengine.nintendo3ds.builder;
 
 /// <summary>
@@ -67,25 +69,15 @@ public sealed class Nintendo3DsNativeBuildExecutor : INintendo3DsNativeBuildExec
             }
         }
 
-        using System.Diagnostics.Process process = System.Diagnostics.Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Unable to start the Nintendo 3DS Docker build.");
-        Task<string> standardOutputTask = process.StandardOutput.ReadToEndAsync();
-        Task<string> standardErrorTask = process.StandardError.ReadToEndAsync();
-        while (!process.HasExited) {
-            cancellationToken.ThrowIfCancellationRequested();
-            process.WaitForExit(100);
-        }
-
-        process.WaitForExit();
-        Task.WaitAll(standardOutputTask, standardErrorTask);
-        if (process.ExitCode != 0) {
+        NativeProcessRunResult result = new NativeProcessRunner().Run(startInfo, cancellationToken);
+        if (result.ExitCode != 0) {
             throw new InvalidOperationException(
                 "Nintendo 3DS Docker build failed." + Environment.NewLine +
                 "Repository root: " + workspace.RepositoryRootPath + Environment.NewLine +
                 "Working root: " + workspace.WorkingRootPath + Environment.NewLine +
                 "Repository Makefile present: " + File.Exists(Path.Combine(workspace.RepositoryRootPath, "Makefile")) + Environment.NewLine +
                 "Arguments: make " + string.Join(" ", makeArguments.Where(argument => !string.IsNullOrWhiteSpace(argument))) + Environment.NewLine +
-                standardOutputTask.Result + Environment.NewLine + standardErrorTask.Result);
+                result.StandardOutput + Environment.NewLine + result.StandardError);
         }
     }
 }

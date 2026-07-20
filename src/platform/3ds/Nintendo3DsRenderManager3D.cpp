@@ -21,6 +21,7 @@
 #include "MeshComponent.hpp"
 #include "ModelAsset.hpp"
 #include "ModelAssetIndexData.hpp"
+#include "ModelSubmeshAsset.hpp"
 #include "ModelSubmeshResolver.hpp"
 #include "ObjectManager.hpp"
 #include "PlatformMaterialAsset.hpp"
@@ -37,6 +38,7 @@
 #include "platform/3ds/Nintendo3DsRuntimeMaterial.hpp"
 #include "platform/3ds/Nintendo3DsRuntimeModel.hpp"
 #include "platform/3ds/Nintendo3DsRuntimeTexture.hpp"
+#include "runtime/array.hpp"
 #include "runtime/native_cast.hpp"
 #include "lit_color_shbin.h"
 #include "lit_color_shbin.h"
@@ -59,6 +61,64 @@ namespace helengine::nintendo3ds {
             }
 
             return ::File::OpenRead(cookedAssetPath);
+        }
+
+        /// Deletes one generated array while preserving the shared empty-array singleton.
+        template<typename T>
+        void DeleteGeneratedArray(Array<T>* values) {
+            if (values != nullptr && values != Array<T>::Empty()) {
+                delete values;
+            }
+        }
+
+        /// Releases the nested arrays and submesh objects owned by one deserialized model payload.
+        void ReleaseCookedModelAsset(ModelAsset* asset) {
+            if (asset == nullptr) {
+                return;
+            }
+
+            auto* positions = asset->Positions;
+            auto* normals = asset->Normals;
+            auto* texCoords = asset->TexCoords;
+            auto* indices16 = asset->Indices16;
+            auto* indices32 = asset->Indices32;
+            auto* submeshes = asset->Submeshes;
+
+            asset->Positions = nullptr;
+            asset->Normals = nullptr;
+            asset->TexCoords = nullptr;
+            asset->Indices16 = nullptr;
+            asset->Indices32 = nullptr;
+            asset->Submeshes = nullptr;
+
+            if (submeshes != nullptr && submeshes != Array<ModelSubmeshAsset*>::Empty()) {
+                for (int32_t index = 0; index < submeshes->Length; index++) {
+                    delete (*submeshes)[index];
+                }
+            }
+
+            DeleteGeneratedArray(positions);
+            DeleteGeneratedArray(normals);
+            DeleteGeneratedArray(texCoords);
+            DeleteGeneratedArray(indices16);
+            DeleteGeneratedArray(indices32);
+            DeleteGeneratedArray(submeshes);
+            delete asset;
+        }
+
+        /// Releases the byte arrays owned by one deserialized texture payload.
+        void ReleaseCookedTextureAsset(TextureAsset* asset) {
+            if (asset == nullptr) {
+                return;
+            }
+
+            auto* colors = asset->Colors;
+            auto* paletteColors = asset->PaletteColors;
+            asset->Colors = nullptr;
+            asset->PaletteColors = nullptr;
+            DeleteGeneratedArray(colors);
+            DeleteGeneratedArray(paletteColors);
+            delete asset;
         }
     }
 
@@ -327,9 +387,17 @@ namespace helengine::nintendo3ds {
                 throw std::invalid_argument("Nintendo 3DS cooked model payloads must deserialize as ModelAsset.");
             }
 
-            RuntimeModel* runtimeModel = BuildModelFromRaw(cookedModelAsset);
-            delete cookedModelAsset;
-            return runtimeModel;
+            asset = nullptr;
+            try {
+                RuntimeModel* runtimeModel = BuildModelFromRaw(cookedModelAsset);
+                ReleaseCookedModelAsset(cookedModelAsset);
+                cookedModelAsset = nullptr;
+                return runtimeModel;
+            } catch (...) {
+                ReleaseCookedModelAsset(cookedModelAsset);
+                cookedModelAsset = nullptr;
+                throw;
+            }
         } catch (...) {
             if (stream != nullptr) {
                 delete stream;
@@ -800,13 +868,26 @@ namespace helengine::nintendo3ds {
 
         std::string normalizedMaterialAssetPath = cookedMaterialAssetPath;
         std::replace(normalizedMaterialAssetPath.begin(), normalizedMaterialAssetPath.end(), '\\', '/');
+
+        std::string normalizedContentRelativePath = contentRelativePath;
+        std::replace(normalizedContentRelativePath.begin(), normalizedContentRelativePath.end(), '\\', '/');
+        if (normalizedMaterialAssetPath.rfind("cooked/", 0) == 0
+            || normalizedMaterialAssetPath.rfind("/cooked/", 0) == 0) {
+            if (!normalizedContentRelativePath.empty() && normalizedContentRelativePath[0] == '/') {
+                normalizedContentRelativePath.erase(0, 1);
+            }
+            if (normalizedContentRelativePath.rfind("cooked/", 0) == 0) {
+                return normalizedContentRelativePath;
+            }
+
+            return "cooked/" + normalizedContentRelativePath;
+        }
+
         const std::size_t cookedMarkerIndex = normalizedMaterialAssetPath.find("/cooked/");
         if (cookedMarkerIndex == std::string::npos) {
             throw std::invalid_argument("Nintendo 3DS cooked material path must contain the packaged '/cooked/' root segment.");
         }
 
-        std::string normalizedContentRelativePath = contentRelativePath;
-        std::replace(normalizedContentRelativePath.begin(), normalizedContentRelativePath.end(), '\\', '/');
         const std::string contentRootPath = normalizedMaterialAssetPath.substr(0, cookedMarkerIndex);
         if (!normalizedContentRelativePath.empty() && normalizedContentRelativePath[0] == '/') {
             return contentRootPath + normalizedContentRelativePath;
@@ -855,7 +936,8 @@ namespace helengine::nintendo3ds {
             runtimeTexture->LoadFromRaw(cookedTextureAsset);
             runtimeMaterial->SetOwnedDiffuseTexture(runtimeTexture);
             runtimeTexture = nullptr;
-            delete cookedTextureAsset;
+            ReleaseCookedTextureAsset(cookedTextureAsset);
+            cookedTextureAsset = nullptr;
         } catch (...) {
             if (textureStream != nullptr) {
                 delete textureStream;
@@ -864,7 +946,8 @@ namespace helengine::nintendo3ds {
                 delete runtimeTexture;
             }
             if (cookedTextureAsset != nullptr) {
-                delete cookedTextureAsset;
+                ReleaseCookedTextureAsset(cookedTextureAsset);
+                cookedTextureAsset = nullptr;
             }
             if (textureAssetPayload != nullptr) {
                 delete textureAssetPayload;
