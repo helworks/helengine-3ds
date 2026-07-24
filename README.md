@@ -5,11 +5,16 @@ This repository contains the Nintendo 3DS platform host and builder integration 
 ## Build
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ..\helengine\artifacts\build-platform.ps1 `
+dotnet run --project ..\helengine\tools\build-waiter\helengine.buildwaiter.csproj -- `
+  --output ..\helprojs\city\3ds-build `
+  --require helengine_3ds.3dsx `
+  -- powershell -NoProfile -ExecutionPolicy Bypass -File ..\helengine\scripts\build-platform.ps1 `
   -Project ..\helprojs\city\project.heproj `
   -Platform 3ds `
   -Output ..\helprojs\city\3ds-build
 ```
+
+The Build Waiter returns successfully only after `helengine_3ds.3dsx` is fresh and non-empty.
 
 ## Run In Emulator
 
