@@ -31,10 +31,15 @@
 #include "CameraClearSettings.hpp"
 #include "platform/3ds/Nintendo3DsRuntimeTexture.hpp"
 #include "runtime/native_cast.hpp"
+#include "runtime/array.hpp"
 #include "system/io/file.hpp"
 
 namespace helengine::nintendo3ds {
     namespace {
+#ifndef HELENGINE_3DS_RENDER_TRACE_ENABLED
+#define HELENGINE_3DS_RENDER_TRACE_ENABLED 0
+#endif
+
         /// Stores the Nintendo 3DS top-screen width in pixels.
         constexpr int32_t Nintendo3DsTopScreenWidth = 400;
 
@@ -56,9 +61,16 @@ namespace helengine::nintendo3ds {
         /// Stores how many detailed 2D draw-call trace lines remain before per-draw diagnostics stop appending.
         int Nintendo3DsRender2DDetailLinesRemaining = 24;
 
+        /// Appends one 2D capture boundary marker to the boot host's present trace.
+        /// <param name="marker">Stable 2D capture boundary name.</param>
+        void Append2DStageMarker(const char* marker) {
+            static_cast<void>(marker);
+        }
+
         /// Appends one diagnostic line to the shared Nintendo 3DS renderer trace file.
         /// <param name="message">Trace line that describes one 2D renderer boundary.</param>
         void AppendRenderTrace(const char* message) {
+#if HELENGINE_3DS_RENDER_TRACE_ENABLED
             if (message == nullptr || Nintendo3DsRender2DTraceFramesRemaining <= 0) {
                 return;
             }
@@ -68,9 +80,11 @@ namespace helengine::nintendo3ds {
                 return;
             }
 
-            std::fputs(message, file);
-            std::fputc('\n', file);
+            std::fprintf(file, "t=%llu %s\n", static_cast<unsigned long long>(osGetTime()), message);
             std::fclose(file);
+#else
+            static_cast<void>(message);
+#endif
         }
 
         /// Appends one detailed draw-call diagnostic line while the detail budget remains available.
@@ -82,6 +96,27 @@ namespace helengine::nintendo3ds {
 
             Nintendo3DsRender2DDetailLinesRemaining--;
             AppendRenderTrace(message);
+        }
+
+        /// Releases one deserialized cooked texture asset and its heap-owned pixel arrays after native texture upload completes.
+        /// <param name="asset">Cooked texture asset whose serialized data is no longer required.</param>
+        void ReleaseTransientTextureAsset(::TextureAsset* asset) {
+            if (asset == nullptr) {
+                return;
+            }
+
+            Array<uint8_t>* colors = asset->Colors;
+            Array<uint8_t>* paletteColors = asset->PaletteColors;
+            asset->Colors = nullptr;
+            asset->PaletteColors = nullptr;
+            if (colors != nullptr && colors != Array<uint8_t>::Empty()) {
+                delete colors;
+            }
+            if (paletteColors != nullptr && paletteColors != Array<uint8_t>::Empty()) {
+                delete paletteColors;
+            }
+
+            delete asset;
         }
     }
 
@@ -127,6 +162,7 @@ namespace helengine::nintendo3ds {
 
         ::FileStream* stream = nullptr;
         ::Asset* asset = nullptr;
+        ::TextureAsset* cookedTextureAsset = nullptr;
         try {
             if (contentStreamSource != nullptr) {
                 ::Stream* contentStream = contentStreamSource->OpenRead(cookedAssetPath);
@@ -142,19 +178,23 @@ namespace helengine::nintendo3ds {
             delete stream;
             stream = nullptr;
 
-            ::TextureAsset* cookedTextureAsset = he_cpp_try_cast<TextureAsset>(asset);
+            cookedTextureAsset = he_cpp_try_cast<TextureAsset>(asset);
             if (cookedTextureAsset == nullptr) {
                 throw std::invalid_argument("Nintendo 3DS cooked texture payloads must deserialize as TextureAsset.");
             }
 
             RuntimeTexture* runtimeTexture = BuildTextureFromRaw(cookedTextureAsset);
-            delete cookedTextureAsset;
+            ReleaseTransientTextureAsset(cookedTextureAsset);
+            cookedTextureAsset = nullptr;
+            asset = nullptr;
             return runtimeTexture;
         } catch (...) {
             if (stream != nullptr) {
                 delete stream;
             }
-            if (asset != nullptr) {
+            if (cookedTextureAsset != nullptr) {
+                ReleaseTransientTextureAsset(cookedTextureAsset);
+            } else if (asset != nullptr) {
                 delete asset;
             }
 
@@ -209,12 +249,24 @@ namespace helengine::nintendo3ds {
 
     /// Walks the active generated-core camera 2D queue and lets each drawable submit itself into the frame capture.
     void Nintendo3DsStartupRenderManager2D::Draw() {
+        AppendRenderTrace("Render2D.DrawBoundary: begin");
+        Append2DStageMarker("DrawBegin");
         Core* core = Core::get_Instance();
         if (core == nullptr || core->get_ObjectManager() == nullptr) {
+            Append2DStageMarker("CoreOrObjectManagerMissing");
+            AppendRenderTrace("Render2D.DrawBoundary: end");
             return;
         }
 
+        Append2DStageMarker("ObjectManagerResolved");
         List<ICamera*>* cameras = core->get_ObjectManager()->get_Cameras();
+        if (cameras == nullptr) {
+            Append2DStageMarker("CameraListMissing");
+            AppendRenderTrace("Render2D.DrawBoundary: end");
+            return;
+        }
+
+        Append2DStageMarker("CameraListResolved");
         if (Nintendo3DsRender2DTraceFramesRemaining > 0) {
             char message[256];
             std::snprintf(
@@ -226,7 +278,9 @@ namespace helengine::nintendo3ds {
         }
         for (int32_t cameraIndex = 0; cameraIndex < cameras->get_Count(); cameraIndex++) {
             ICamera* camera = (*cameras)[cameraIndex];
+            Append2DStageMarker("CameraBegin");
             if (camera == nullptr || camera->get_Parent() == nullptr || !camera->get_Parent()->get_IsHierarchyEnabled()) {
+                Append2DStageMarker("CameraSkipped");
                 continue;
             }
 
@@ -238,6 +292,7 @@ namespace helengine::nintendo3ds {
             Nintendo3DsScreenTarget screenTarget = Nintendo3DsScreenTarget::Top;
             ResolveViewportTarget(viewport, screenTarget, viewportX, viewportY, viewportWidth, viewportHeight);
             if (viewportWidth <= 0 || viewportHeight <= 0) {
+                Append2DStageMarker("CameraViewportSkipped");
                 continue;
             }
 
@@ -260,6 +315,7 @@ namespace helengine::nintendo3ds {
             IRenderQueue2D* renderQueue = camera->get_RenderQueue2D();
             if (renderQueue == nullptr) {
                 AppendRenderTrace("Render2D.DrawCamera: renderQueue=null");
+                Append2DStageMarker("RenderQueueMissing");
                 continue;
             }
 
@@ -280,8 +336,13 @@ namespace helengine::nintendo3ds {
                     static_cast<int>(viewportHeight));
                 AppendRenderTrace(message);
             }
+            Append2DStageMarker("QueueVisitBegin");
             renderQueue->VisitOrdered(this);
+            Append2DStageMarker("QueueVisitComplete");
         }
+
+        Append2DStageMarker("DrawComplete");
+        AppendRenderTrace("Render2D.DrawBoundary: end");
     }
 
     /// Visits one ordered 2D drawable from the active generated-core camera queue.

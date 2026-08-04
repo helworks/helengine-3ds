@@ -63,6 +63,15 @@ public sealed class Nintendo3DsNativeBuildExecutor : INintendo3DsNativeBuildExec
         startInfo.ArgumentList.Add("/workspace");
         startInfo.ArgumentList.Add("helengine-3ds");
         startInfo.ArgumentList.Add("make");
+        string renderDiagnosticMode = Environment.GetEnvironmentVariable("HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE");
+        if (!string.IsNullOrWhiteSpace(renderDiagnosticMode)) {
+            startInfo.ArgumentList.Add("HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE=" + renderDiagnosticMode);
+        }
+        string skipDrawArrays = Environment.GetEnvironmentVariable("HELENGINE_3DS_SKIP_DRAW_ARRAYS");
+        if (!string.IsNullOrWhiteSpace(skipDrawArrays)) {
+            startInfo.ArgumentList.Add("HELENGINE_3DS_SKIP_DRAW_ARRAYS=" + skipDrawArrays);
+        }
+
         for (int index = 0; index < makeArguments.Length; index++) {
             if (!string.IsNullOrWhiteSpace(makeArguments[index])) {
                 startInfo.ArgumentList.Add(makeArguments[index]);

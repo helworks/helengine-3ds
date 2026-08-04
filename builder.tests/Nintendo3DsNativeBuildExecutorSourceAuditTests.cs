@@ -14,6 +14,7 @@ public sealed class Nintendo3DsNativeBuildExecutorSourceAuditTests {
         string sourceCode = File.ReadAllText(sourcePath);
 
         Assert.Contains("new NativeProcessRunner().Run(startInfo, cancellationToken)", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE", sourceCode, StringComparison.Ordinal);
         Assert.DoesNotContain("ReadToEndAsync", sourceCode, StringComparison.Ordinal);
         Assert.DoesNotContain("WaitForExit(100)", sourceCode, StringComparison.Ordinal);
         Assert.DoesNotContain("Task.WaitAll", sourceCode, StringComparison.Ordinal);

@@ -16,8 +16,25 @@ public class Nintendo3DsStartupRenderManager2DSourceAuditTests {
         Assert.Contains("#include \"AssetSerializer.hpp\"", sourceCode, StringComparison.Ordinal);
         Assert.Contains("stream = ::File::OpenRead(cookedAssetPath);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("asset = ::AssetSerializer::Deserialize(stream);", sourceCode, StringComparison.Ordinal);
-        Assert.Contains("::TextureAsset* cookedTextureAsset = he_cpp_try_cast<TextureAsset>(asset);", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("cookedTextureAsset = he_cpp_try_cast<TextureAsset>(asset);", sourceCode, StringComparison.Ordinal);
         Assert.Contains("RuntimeTexture* runtimeTexture = BuildTextureFromRaw(cookedTextureAsset);", sourceCode, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies cooked texture construction releases the deserialized color arrays on both successful and failed uploads.
+    /// </summary>
+    [Fact]
+    public void Source_whenCookedTextureIsReleased_deletesItsTransientColorArrays() {
+        string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        string sourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsStartupRenderManager2D.cpp");
+        string sourceCode = File.ReadAllText(sourcePath);
+
+        Assert.Contains("void ReleaseTransientTextureAsset(::TextureAsset* asset)", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("Array<uint8_t>* colors = asset->Colors;", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("Array<uint8_t>* paletteColors = asset->PaletteColors;", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("delete colors;", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("delete paletteColors;", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("ReleaseTransientTextureAsset(cookedTextureAsset);", sourceCode, StringComparison.Ordinal);
     }
 
     /// <summary>

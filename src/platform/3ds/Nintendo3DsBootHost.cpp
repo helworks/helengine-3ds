@@ -1,6 +1,8 @@
 #include "platform/3ds/Nintendo3DsBootHost.hpp"
 
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <exception>
 #include <stdexcept>
 
@@ -38,6 +40,14 @@
 #include "Entity.hpp"
 #endif
 
+#ifndef HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE
+#define HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE 0
+#endif
+
+#if HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE < 0 || HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE > 3
+#error "HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE must be between 0 and 3."
+#endif
+
 namespace helengine::nintendo3ds {
     namespace {
         /// Stores the Nintendo 3DS top-screen pixel height used by the explicit Citro3D render target.
@@ -51,6 +61,12 @@ namespace helengine::nintendo3ds {
 
         /// Stores the Nintendo 3DS bottom-screen pixel width used by the explicit Citro3D render target.
         constexpr int Nintendo3DsBottomScreenPixelWidth = 320;
+
+        /// Stores the conservative elapsed time supplied for the first generated-core update before a prior hardware timestamp exists.
+        constexpr double Nintendo3DsInitialFrameDeltaSeconds = 1.0 / 60.0;
+
+        /// Stores the largest elapsed interval applied after a suspend or debugger pause so one delayed frame cannot destabilize simulation.
+        constexpr double Nintendo3DsMaximumFrameDeltaSeconds = 0.25;
 
         /// Stores the display-transfer flags recommended by devkitPro Citro3D samples for the top-screen 3D target.
         constexpr uint32_t Nintendo3DsTopScreenDisplayTransferFlags =
@@ -69,6 +85,88 @@ namespace helengine::nintendo3ds {
             | GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8)
             | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8)
             | GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO);
+
+        /// Stores the dedicated SD-card trace path used for frame-present boundary diagnostics.
+        constexpr const char* Nintendo3DsPresentTraceLogPath = "sdmc:/helengine_3ds_present_trace.txt";
+
+        /// Limits frame-present boundary writes so diagnostics cannot become the source of a long-running slowdown.
+        int Nintendo3DsFrameTraceLinesRemaining = 512;
+
+        /// Tracks whether the present trace was initialized for the current process so each run starts with a fresh file.
+        bool Nintendo3DsPresentTraceInitialized = false;
+
+        /// Stores the first present-trace timestamp so subsequent markers can report elapsed milliseconds for one run.
+        uint64_t Nintendo3DsPresentTraceStartTime = 0;
+
+        /// Stores the in-memory present trace buffer so phase instrumentation does not perform one SD write per marker.
+        char Nintendo3DsPresentTraceBuffer[8192];
+
+        /// Stores the number of bytes currently queued in the in-memory present trace buffer.
+        std::size_t Nintendo3DsPresentTraceBufferLength = 0;
+
+        /// Flushes the buffered present trace to the SD card in one bounded write.
+        void FlushPresentTraceBuffer() {
+            if (Nintendo3DsPresentTraceBufferLength == 0) {
+                return;
+            }
+
+            const char* fileMode = Nintendo3DsPresentTraceInitialized ? "a" : "w";
+            std::FILE* file = std::fopen(Nintendo3DsPresentTraceLogPath, fileMode);
+            if (file == nullptr) {
+                return;
+            }
+
+            std::fwrite(Nintendo3DsPresentTraceBuffer, 1, Nintendo3DsPresentTraceBufferLength, file);
+            std::fclose(file);
+            Nintendo3DsPresentTraceInitialized = true;
+            Nintendo3DsPresentTraceBufferLength = 0;
+        }
+
+        /// Appends one bounded frame-present boundary marker to the shared renderer trace.
+        /// <param name="marker">Stable boundary name reached by the 3DS present pipeline.</param>
+        void AppendFrameTraceMarker(const char* marker, const char* details = nullptr) {
+#if !HELENGINE_3DS_RENDER_TRACE_ENABLED
+            static_cast<void>(marker);
+            static_cast<void>(details);
+            return;
+#else
+            if (marker == nullptr || marker[0] == '\0' || Nintendo3DsFrameTraceLinesRemaining <= 0) {
+                return;
+            }
+
+            const uint64_t timestamp = osGetTime();
+            if (Nintendo3DsPresentTraceStartTime == 0) {
+                Nintendo3DsPresentTraceStartTime = timestamp;
+            }
+
+            char line[320];
+            const int lineLength = std::snprintf(
+                line,
+                sizeof(line),
+                "PresentFrame.%s t=%llu%s\n",
+                marker,
+                static_cast<unsigned long long>(timestamp - Nintendo3DsPresentTraceStartTime),
+                details == nullptr ? "" : details);
+            if (lineLength <= 0 || static_cast<std::size_t>(lineLength) >= sizeof(line)) {
+                return;
+            }
+
+            const std::size_t requiredLength = static_cast<std::size_t>(lineLength);
+            if (Nintendo3DsPresentTraceBufferLength + requiredLength > sizeof(Nintendo3DsPresentTraceBuffer)) {
+                FlushPresentTraceBuffer();
+            }
+            if (Nintendo3DsPresentTraceBufferLength + requiredLength > sizeof(Nintendo3DsPresentTraceBuffer)) {
+                return;
+            }
+
+            Nintendo3DsFrameTraceLinesRemaining--;
+            std::memcpy(Nintendo3DsPresentTraceBuffer + Nintendo3DsPresentTraceBufferLength, line, requiredLength);
+            Nintendo3DsPresentTraceBufferLength += requiredLength;
+            if (std::strcmp(marker, "FrameEndComplete") == 0) {
+                FlushPresentTraceBuffer();
+            }
+#endif
+        }
 
     }
 
@@ -315,6 +413,8 @@ namespace helengine::nintendo3ds {
         , EngineRenderManager3D(nullptr)
         , EngineRenderManager2D(nullptr)
         , EngineInputBackend(nullptr)
+        , PreviousCoreUpdateTimestampMilliseconds(0)
+        , HasPreviousCoreUpdateTimestamp(false)
         , EngineAudioBackend(nullptr)
         , TopScreenRenderTargetMetadata(nullptr)
         , BottomScreenRenderTargetMetadata(nullptr)
@@ -376,14 +476,24 @@ namespace helengine::nintendo3ds {
         while (aptMainLoop()) {
             hidScanInput();
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
-            if (EngineCore != nullptr && EngineRenderManager2D != nullptr && EngineRenderManager3D != nullptr) {
+            if (EngineCore != nullptr && EngineRenderManager3D != nullptr) {
                 try {
+                    AppendFrameTraceMarker("Loop.UpdateBegin");
                     AssignScreenRenderTargetsToSceneCameras();
                     EngineRenderManager3D->BeginFrame();
+#if HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE != 3
+                    if (EngineRenderManager2D == nullptr) {
+                        throw std::runtime_error("Nintendo 3DS 2D renderer is required outside 3D-only diagnostic mode.");
+                    }
                     EngineRenderManager2D->BeginFrame();
-                    EngineCore->Update(1.0 / 60.0);
+#endif
+                    double elapsedSeconds = ResolveElapsedSecondsForCurrentFrame();
+                    EngineCore->Update(elapsedSeconds);
                     WriteLiveSceneTraceIfChanged(EngineCore);
+#if HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE != 3
                     EngineRenderManager2D->FlushReleasedTextures();
+#endif
+                    AppendFrameTraceMarker("Loop.UpdateComplete");
                 } catch (const std::exception& exception) {
                     const std::string diagnosticMessage = BuildManagedRuntimeDiagnosticMessage(exception.what(), EngineCore);
                     WriteDiagnosticLog("core-update", diagnosticMessage.c_str());
@@ -404,8 +514,24 @@ namespace helengine::nintendo3ds {
                 }
 
                 try {
+                    AppendFrameTraceMarker("Loop.DrawBegin");
+                    AppendFrameTraceMarker("Loop.CoreDrawBegin");
                     EngineCore->Draw();
+                    char coreDrawMetrics[192];
+                    std::snprintf(
+                        coreDrawMetrics,
+                        sizeof(coreDrawMetrics),
+                        " completeFrameBoundaryMs=%f renderManager3dMs=%f renderManager3dCalls=%d",
+                        EngineCore->get_LastCompleteFrameBoundaryMilliseconds(),
+                        EngineCore->get_LastRenderManager3DDrawMilliseconds(),
+                        EngineCore->get_LastRenderManager3DDrawCallCount());
+                    AppendFrameTraceMarker("Loop.CoreDrawComplete", coreDrawMetrics);
+#if HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE != 3
+                    AppendFrameTraceMarker("Loop.Render2DBegin");
                     EngineRenderManager2D->Draw();
+                    AppendFrameTraceMarker("Loop.Render2DComplete");
+#endif
+                    AppendFrameTraceMarker("Loop.DrawComplete");
                 } catch (const std::exception& exception) {
                     const std::string diagnosticMessage = BuildManagedRuntimeDiagnosticMessage(exception.what(), EngineCore);
                     WriteDiagnosticLog("core-draw", diagnosticMessage.c_str());
@@ -426,6 +552,7 @@ namespace helengine::nintendo3ds {
                 }
             }
 #endif
+            AppendFrameTraceMarker("Loop.PresentBegin");
             PresentFrame();
         }
 
@@ -433,8 +560,29 @@ namespace helengine::nintendo3ds {
         return 0;
     }
 
+    /// Measures elapsed wall-clock time since the prior generated-core update and bounds suspension-sized gaps before simulation consumes them.
+    /// <returns>Elapsed simulation time in seconds for the next generated-core update.</returns>
+    double Nintendo3DsBootHost::ResolveElapsedSecondsForCurrentFrame() {
+        uint64_t currentTimestampMilliseconds = osGetTime();
+        if (!HasPreviousCoreUpdateTimestamp) {
+            PreviousCoreUpdateTimestampMilliseconds = currentTimestampMilliseconds;
+            HasPreviousCoreUpdateTimestamp = true;
+            return Nintendo3DsInitialFrameDeltaSeconds;
+        }
+
+        uint64_t previousTimestampMilliseconds = PreviousCoreUpdateTimestampMilliseconds;
+        PreviousCoreUpdateTimestampMilliseconds = currentTimestampMilliseconds;
+        if (currentTimestampMilliseconds < previousTimestampMilliseconds) {
+            return Nintendo3DsInitialFrameDeltaSeconds;
+        }
+
+        double elapsedSeconds = static_cast<double>(currentTimestampMilliseconds - previousTimestampMilliseconds) / 1000.0;
+        return std::clamp(elapsedSeconds, 0.0, Nintendo3DsMaximumFrameDeltaSeconds);
+    }
+
     /// Initializes libctru, citro3d, citro2d, and the screen render targets.
     bool Nintendo3DsBootHost::InitializeRenderer() {
+        threadOnException(ERRF_ExceptionHandler, RUN_HANDLER_ON_FAULTING_STACK, WRITE_DATA_TO_FAULTING_STACK);
         gfxInitDefault();
         RomFsInitialized = R_SUCCEEDED(romfsInit());
 
@@ -485,7 +633,9 @@ namespace helengine::nintendo3ds {
 
     /// Draws one frame to both visible screens and overlays any captured startup-scene 2D content on the top screen.
     void Nintendo3DsBootHost::PresentFrame() {
+        AppendFrameTraceMarker("FrameBeginBegin");
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+        AppendFrameTraceMarker("FrameBeginComplete");
 
         u32 topScreenClearColor = ActiveTopScreenColor;
         u32 bottomScreenClearColor = ActiveBottomScreenColor;
@@ -496,13 +646,24 @@ namespace helengine::nintendo3ds {
         }
 #endif
 #if HELENGINE_NINTENDO_3DS_HAS_GENERATED_CORE
+#if HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE == 0 || HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE == 3
         if (EngineRenderManager3D != nullptr) {
             EngineRenderManager3D->RenderTopScreen(TopTarget, topScreenClearColor);
         }
 #else
+        C3D_FrameDrawOn(TopTarget);
         C3D_RenderTargetClear(TopTarget, C3D_CLEAR_ALL, __builtin_bswap32(topScreenClearColor), 0);
 #endif
+#else
+        C3D_FrameDrawOn(TopTarget);
+        C3D_RenderTargetClear(TopTarget, C3D_CLEAR_ALL, __builtin_bswap32(topScreenClearColor), 0);
+#endif
+        AppendFrameTraceMarker("Render3DComplete");
         C3D_FrameSplit(0);
+#if HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE == 1 || HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE == 3
+        C3D_FrameDrawOn(BottomTarget);
+        C3D_RenderTargetClear(BottomTarget, C3D_CLEAR_ALL, __builtin_bswap32(bottomScreenClearColor), 0);
+#else
         C2D_Prepare();
         C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_ALL);
         C2D_SceneBegin(TopTarget);
@@ -512,6 +673,7 @@ namespace helengine::nintendo3ds {
         }
 #endif
         C2D_Flush();
+        AppendFrameTraceMarker("Top2DFlushComplete");
         C3D_FrameSplit(0);
         C2D_TargetClear(BottomTarget, bottomScreenClearColor);
         C2D_Prepare();
@@ -522,8 +684,11 @@ namespace helengine::nintendo3ds {
         }
 #endif
         C2D_Flush();
+        AppendFrameTraceMarker("Bottom2DFlushComplete");
+#endif
 
         C3D_FrameEnd(0);
+        AppendFrameTraceMarker("FrameEndComplete");
     }
 
     /// Attempts to load the packaged startup manifest and apply its colors when valid.

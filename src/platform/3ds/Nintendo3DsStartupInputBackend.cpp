@@ -116,7 +116,7 @@ namespace helengine::nintendo3ds {
         gamepadState.SetButtonDown(InputGamepadButton::LeftTrigger, (heldKeys & KEY_ZL) != 0);
         gamepadState.SetButtonDown(InputGamepadButton::RightTrigger, (heldKeys & KEY_ZR) != 0);
         gamepadState.LeftStickX = static_cast<int16_t>(std::clamp(static_cast<double>(circlePad.dx) / Nintendo3DsCirclePadRange, -1.0, 1.0) * Nintendo3DsAnalogFullScale);
-        gamepadState.LeftStickY = static_cast<int16_t>(std::clamp(static_cast<double>(circlePad.dy) / Nintendo3DsCirclePadRange, -1.0, 1.0) * Nintendo3DsAnalogFullScale);
+        gamepadState.LeftStickY = static_cast<int16_t>(std::clamp(-static_cast<double>(circlePad.dy) / Nintendo3DsCirclePadRange, -1.0, 1.0) * Nintendo3DsAnalogFullScale);
         gamepadState.LeftTrigger = (heldKeys & KEY_ZL) != 0 ? 32767 : 0;
         gamepadState.RightTrigger = (heldKeys & KEY_ZR) != 0 ? 32767 : 0;
         gamepadState.RightStickX = 0;

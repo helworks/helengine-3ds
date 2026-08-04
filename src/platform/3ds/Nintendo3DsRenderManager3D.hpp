@@ -11,6 +11,7 @@
 #include "IDrawable3D.hpp"
 #include "IRenderVisitor3D.hpp"
 #include "RenderManager3D.hpp"
+#include "platform/3ds/Nintendo3DsModelVertex.hpp"
 #include "float3.hpp"
 #include "float4.hpp"
 #include "float4x4.hpp"
@@ -191,6 +192,9 @@ namespace helengine::nintendo3ds {
 
         /// Stores whether the current frame captured one top-screen clear color.
         bool HasTopScreenClearColor;
+
+        /// Stores the isolated four-vertex diagnostic buffer used to test hardware vertex-fetch padding.
+        Nintendo3DsModelVertex* PaddedDiagnosticVertexData;
 
         /// Initializes the lit untextured shader program the first time one untextured 3D draw is submitted.
         void EnsureShaderInitialized();

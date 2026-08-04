@@ -118,6 +118,12 @@ namespace helengine::nintendo3ds {
         /// Stores the Nintendo 3DS startup input backend used during startup-scene materialization.
         Nintendo3DsStartupInputBackend* EngineInputBackend;
 
+        /// Stores the timestamp captured immediately before the previous generated-core update.
+        uint64_t PreviousCoreUpdateTimestampMilliseconds;
+
+        /// Tracks whether a previous generated-core update timestamp is available for elapsed-time measurement.
+        bool HasPreviousCoreUpdateTimestamp;
+
         /// Stores the Nintendo 3DS audio backend used by generated-core scene audio playback.
         Nintendo3DsAudioBackend* EngineAudioBackend;
 
@@ -159,6 +165,10 @@ namespace helengine::nintendo3ds {
         /// <param name="cookedRelativePath">Cooked-relative startup-scene asset path from the runtime startup manifest.</param>
         /// <returns>Stable runtime scene id registered for that cooked scene path.</returns>
         std::string ResolveStartupSceneId(const std::string& cookedRelativePath) const;
+
+        /// Measures elapsed wall-clock time since the prior generated-core update and bounds suspension-sized gaps before simulation consumes them.
+        /// <returns>Elapsed simulation time in seconds for the next generated-core update.</returns>
+        double ResolveElapsedSecondsForCurrentFrame();
 
         /// Presents one persistent diagnostic screen until the application is closed.
         /// <param name="topScreenColor">Solid color shown on the top screen during the diagnostic hold.</param>

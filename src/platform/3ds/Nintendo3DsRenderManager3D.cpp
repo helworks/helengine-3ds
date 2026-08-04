@@ -47,6 +47,10 @@
 
 namespace helengine::nintendo3ds {
     namespace {
+#ifndef HELENGINE_3DS_RENDER_TRACE_ENABLED
+#define HELENGINE_3DS_RENDER_TRACE_ENABLED 0
+#endif
+
         /// Opens one cooked asset stream through the runtime content source when available.
         ::FileStream* OpenCookedAssetStream(const std::string& cookedAssetPath, IContentStreamSource* contentStreamSource) {
             if (contentStreamSource != nullptr) {
@@ -155,10 +159,11 @@ namespace helengine::nintendo3ds {
         /// Stores the last scene-signature string observed by the 3D renderer trace budget so scene transitions can re-arm diagnostics.
         std::string Nintendo3DsLastRenderSceneSignature;
 
-        /// Appends one diagnostic line to the shared Nintendo 3DS renderer trace file.
-        /// <param name="message">Trace line that describes one 3D renderer boundary.</param>
-        void AppendRenderTrace(const char* message) {
-            if (message == nullptr || Nintendo3DsRender3DTraceFramesRemaining <= 0) {
+        /// Appends one line to the shared 3D renderer trace without consuming a category-specific diagnostic budget.
+        /// <param name="message">Trace line to persist.</param>
+        void AppendUnboundedRenderTraceLine(const char* message) {
+#if HELENGINE_3DS_RENDER_TRACE_ENABLED
+            if (message == nullptr) {
                 return;
             }
 
@@ -167,9 +172,21 @@ namespace helengine::nintendo3ds {
                 return;
             }
 
-            std::fputs(message, file);
-            std::fputc('\n', file);
+            std::fprintf(file, "t=%llu %s\n", static_cast<unsigned long long>(osGetTime()), message);
             std::fclose(file);
+#else
+            static_cast<void>(message);
+#endif
+        }
+
+        /// Appends one diagnostic line to the shared Nintendo 3DS renderer trace file.
+        /// <param name="message">Trace line that describes one 3D renderer boundary.</param>
+        void AppendRenderTrace(const char* message) {
+            if (message == nullptr || Nintendo3DsRender3DTraceFramesRemaining <= 0) {
+                return;
+            }
+
+            AppendUnboundedRenderTraceLine(message);
         }
 
         /// Appends one detailed draw-call diagnostic line while the detail budget remains available.
@@ -180,7 +197,7 @@ namespace helengine::nintendo3ds {
             }
 
             Nintendo3DsRender3DDetailLinesRemaining--;
-            AppendRenderTrace(message);
+            AppendUnboundedRenderTraceLine(message);
         }
 
         /// Appends one transform-level diagnostic line while the transform budget remains available.
@@ -191,7 +208,7 @@ namespace helengine::nintendo3ds {
             }
 
             Nintendo3DsRender3DTransformLinesRemaining--;
-            AppendRenderTrace(message);
+            AppendUnboundedRenderTraceLine(message);
         }
 
         /// Re-arms the renderer trace budgets whenever the loaded-scene signature changes so post-transition frames stay observable.
@@ -226,11 +243,13 @@ namespace helengine::nintendo3ds {
             Nintendo3DsRender3DDetailLinesRemaining = 64;
             Nintendo3DsRender3DTransformLinesRemaining = 20;
 
+#if HELENGINE_3DS_RENDER_TRACE_ENABLED
             std::FILE* file = std::fopen(Nintendo3DsRenderTracePath, "w");
             if (file != nullptr) {
                 std::fprintf(file, "Render3D.SceneTransition: loadedScenes=%s\n", sceneSignature.c_str());
                 std::fclose(file);
             }
+#endif
         }
 
     }
@@ -262,12 +281,23 @@ namespace helengine::nintendo3ds {
         , TexturedUniformLocationAmbientColor(-1)
         , TexturedUniformLocationBaseColor(-1)
         , TopScreenClearColor(0)
-        , HasTopScreenClearColor(false) {
+        , HasTopScreenClearColor(false)
+        , PaddedDiagnosticVertexData(nullptr) {
+#if HELENGINE_3DS_SAFE_DRAW_ARRAYS
+        PaddedDiagnosticVertexData = static_cast<Nintendo3DsModelVertex*>(linearAlloc(sizeof(Nintendo3DsModelVertex) * 4));
+        if (PaddedDiagnosticVertexData == nullptr) {
+            throw std::bad_alloc();
+        }
+#endif
     }
 
     /// Releases shader resources owned by the Nintendo 3DS 3D renderer.
     Nintendo3DsRenderManager3D::~Nintendo3DsRenderManager3D() {
         ReleaseShaderResources();
+#if HELENGINE_3DS_SAFE_DRAW_ARRAYS
+        linearFree(PaddedDiagnosticVertexData);
+        PaddedDiagnosticVertexData = nullptr;
+#endif
     }
 
     /// Builds one Nintendo 3DS runtime model from the supplied raw asset.
@@ -360,9 +390,24 @@ namespace helengine::nintendo3ds {
             throw std::bad_alloc();
         }
 
+        Nintendo3DsUntexturedModelVertex* expandedUntexturedVertexData = static_cast<Nintendo3DsUntexturedModelVertex*>(linearAlloc(sizeof(Nintendo3DsUntexturedModelVertex) * expandedVertices.size()));
+        if (expandedUntexturedVertexData == nullptr) {
+            linearFree(expandedVertexData);
+            throw std::bad_alloc();
+        }
+
         std::memcpy(expandedVertexData, expandedVertices.data(), sizeof(Nintendo3DsModelVertex) * expandedVertices.size());
+        for (std::size_t index = 0; index < expandedVertices.size(); index++) {
+            expandedUntexturedVertexData[index].PositionX = expandedVertices[index].PositionX;
+            expandedUntexturedVertexData[index].PositionY = expandedVertices[index].PositionY;
+            expandedUntexturedVertexData[index].PositionZ = expandedVertices[index].PositionZ;
+            expandedUntexturedVertexData[index].NormalX = expandedVertices[index].NormalX;
+            expandedUntexturedVertexData[index].NormalY = expandedVertices[index].NormalY;
+            expandedUntexturedVertexData[index].NormalZ = expandedVertices[index].NormalZ;
+        }
         GSPGPU_FlushDataCache(expandedVertexData, sizeof(Nintendo3DsModelVertex) * expandedVertices.size());
-        Nintendo3DsRuntimeModel* runtimeModel = new Nintendo3DsRuntimeModel(expandedVertexData, static_cast<int32_t>(expandedVertices.size()));
+        GSPGPU_FlushDataCache(expandedUntexturedVertexData, sizeof(Nintendo3DsUntexturedModelVertex) * expandedVertices.size());
+        Nintendo3DsRuntimeModel* runtimeModel = new Nintendo3DsRuntimeModel(expandedVertexData, expandedUntexturedVertexData, static_cast<int32_t>(expandedVertices.size()));
         runtimeModel->SetBounds(data->BoundsMin, data->BoundsMax);
         runtimeModel->SetSubmeshes(ModelSubmeshResolver::BuildRuntimeSubmeshes(data));
         return runtimeModel;
@@ -504,9 +549,11 @@ namespace helengine::nintendo3ds {
 
     /// Walks the active generated-core camera list and captures the top-screen cameras that should render during present-time playback.
     void Nintendo3DsRenderManager3D::Draw() {
+        AppendUnboundedRenderTraceLine("Render3D.DrawBoundary: begin");
         Core* core = Core::get_Instance();
         if (core == nullptr || core->get_ObjectManager() == nullptr) {
             AppendRenderTrace("Render3D.Draw: core-or-object-manager-null");
+            AppendUnboundedRenderTraceLine("Render3D.DrawBoundary: end");
             return;
         }
 
@@ -515,6 +562,7 @@ namespace helengine::nintendo3ds {
         List<ICamera*>* cameras = core->get_ObjectManager()->get_Cameras();
         if (cameras == nullptr) {
             AppendRenderTrace("Render3D.Draw: cameras-null");
+            AppendUnboundedRenderTraceLine("Render3D.DrawBoundary: end");
             return;
         }
 
@@ -577,14 +625,18 @@ namespace helengine::nintendo3ds {
             }
 
             if (renderQueue != nullptr) {
+                AppendDetailedRenderTrace("Render3D.CaptureCamera: before-visit");
                 ActiveCapturedDrawables = &cameraState.Drawables;
                 renderQueue->VisitOrdered(this);
                 ActiveCapturedDrawables = nullptr;
+                AppendDetailedRenderTrace("Render3D.CaptureCamera: after-visit");
             }
 
             CapturedCameras.push_back(cameraState);
+            AppendDetailedRenderTrace("Render3D.CaptureCamera: camera-captured");
         }
 
+        AppendUnboundedRenderTraceLine("Render3D.DrawBoundary: end");
     }
 
     /// Visits one ordered 3D drawable from the active generated-core camera queue and draws supported mesh content through the lit-color path.
@@ -648,9 +700,12 @@ namespace helengine::nintendo3ds {
             throw std::invalid_argument("Nintendo 3DS top-screen render target is required.");
         }
 
+        AppendDetailedRenderTrace("Render3D.RenderTopScreen: begin");
         ActiveTarget = target;
         C3D_RenderTargetClear(target, C3D_CLEAR_ALL, __builtin_bswap32(clearColor), 0);
+        AppendDetailedRenderTrace("Render3D.RenderTopScreen: target-cleared");
         C3D_FrameDrawOn(target);
+        AppendDetailedRenderTrace("Render3D.RenderTopScreen: target-selected");
         if (CapturedCameras.empty()) {
             AppendRenderTrace("Render3D.RenderTopScreen: capturedCameras=0");
             ActiveTarget = nullptr;
@@ -665,10 +720,13 @@ namespace helengine::nintendo3ds {
         }
 
         for (const CapturedCameraState& cameraState : CapturedCameras) {
+            AppendDetailedRenderTrace("Render3D.RenderTopScreen: camera-begin");
             DrawCamera(cameraState);
+            AppendDetailedRenderTrace("Render3D.RenderTopScreen: camera-complete");
         }
 
         ActiveTarget = nullptr;
+        AppendDetailedRenderTrace("Render3D.RenderTopScreen: end");
         if (Nintendo3DsRender3DTraceFramesRemaining > 0) {
             Nintendo3DsRender3DTraceFramesRemaining--;
         }
@@ -973,6 +1031,8 @@ namespace helengine::nintendo3ds {
             return;
         }
 
+        AppendDetailedRenderTrace("Render3D.DrawRuntimeModel: begin");
+
         if (Nintendo3DsRender3DTraceFramesRemaining > 0) {
             char message[160];
             std::snprintf(
@@ -1030,6 +1090,17 @@ namespace helengine::nintendo3ds {
         int32_t submittedVertexCount = runtimeModel->GetVertexCount();
         C3D_Mtx gpuModelView = BuildGpuMatrix(modelView);
         GSPGPU_FlushDataCache(vertexData, sizeof(Nintendo3DsModelVertex) * static_cast<uint32_t>(submittedVertexCount));
+#if HELENGINE_3DS_SAFE_DRAW_ARRAYS
+        if (PaddedDiagnosticVertexData == nullptr || submittedVertexCount < 3) {
+            throw std::runtime_error("Nintendo 3DS padded vertex diagnostic requires three source vertices.");
+        }
+
+        std::memcpy(PaddedDiagnosticVertexData, vertexData, sizeof(Nintendo3DsModelVertex) * 3);
+        std::memcpy(PaddedDiagnosticVertexData + 3, vertexData, sizeof(Nintendo3DsModelVertex));
+        GSPGPU_FlushDataCache(PaddedDiagnosticVertexData, sizeof(Nintendo3DsModelVertex) * 4);
+        vertexData = PaddedDiagnosticVertexData;
+#endif
+        AppendDetailedRenderTrace("Render3D.DrawRuntimeModel: vertex-cache-flushed");
 
         DirectionalLightComponent* directionalLight = ResolveActiveDirectionalLight();
         float3 viewSpaceLightVector = BuildViewSpaceLightVector(ActiveCameraOrientation, directionalLight);
@@ -1112,8 +1183,7 @@ namespace helengine::nintendo3ds {
                 EnsureShaderInitialized();
                 C3D_BindProgram(&Program);
                 ApplyUntexturedPipelineState();
-                BufInfo_Add(bufInfo, vertexData, sizeof(Nintendo3DsModelVertex), 1, 0x0);
-                BufInfo_Add(bufInfo, reinterpret_cast<const uint8_t*>(vertexData) + (sizeof(float) * 5), sizeof(Nintendo3DsModelVertex), 1, 0x1);
+                BufInfo_Add(bufInfo, runtimeModel->GetUntexturedVertexData(), sizeof(Nintendo3DsUntexturedModelVertex), 2, 0x10);
                 ApplyCommonLightingUniforms(
                     UniformLocationProjection,
                     UniformLocationModelView,
@@ -1129,8 +1199,29 @@ namespace helengine::nintendo3ds {
                     baseColor);
             }
 
+            char submissionMessage[192];
+            std::snprintf(
+                submissionMessage,
+                sizeof(submissionMessage),
+                "Render3D.DrawRuntimeModel: draw-arrays index=%d count=%d textured=%d",
+                static_cast<int>(submesh->get_IndexStart()),
+                static_cast<int>(submesh->get_IndexCount()),
+                diffuseTexture != nullptr && diffuseTexture->HasNativeTexture() ? 1 : 0);
+            AppendDetailedRenderTrace(submissionMessage);
+
+#if HELENGINE_3DS_SKIP_DRAW_ARRAYS
+            AppendDetailedRenderTrace("Render3D.DrawRuntimeModel: draw-arrays-skipped");
+#elif HELENGINE_3DS_SAFE_DRAW_ARRAYS
+            AppendDetailedRenderTrace("Render3D.DrawRuntimeModel: draw-arrays-safe-triangle");
+            C3D_DrawArrays(GPU_TRIANGLES, 0, 3);
+            AppendDetailedRenderTrace("Render3D.DrawRuntimeModel: draw-arrays-safe-triangle-submitted");
+#else
             C3D_DrawArrays(GPU_TRIANGLES, submesh->get_IndexStart(), submesh->get_IndexCount());
+            AppendDetailedRenderTrace("Render3D.DrawRuntimeModel: draw-arrays-submitted");
+#endif
         }
+
+        AppendDetailedRenderTrace("Render3D.DrawRuntimeModel: end");
     }
 
     /// Returns whether the supplied camera targets the Nintendo 3DS top screen.

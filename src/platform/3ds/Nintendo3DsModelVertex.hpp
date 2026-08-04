@@ -29,6 +29,27 @@ namespace helengine::nintendo3ds {
         /// Stores the authored model-space normal Z component consumed by the Nintendo 3DS lighting shader.
         float NormalZ;
     };
+
+    /// Stores one tightly packed position-and-normal vertex for the Nintendo 3DS untextured shader path.
+    struct Nintendo3DsUntexturedModelVertex final {
+        /// Stores the model-space position consumed by the untextured vertex shader.
+        float PositionX;
+
+        /// Stores the model-space position Y component consumed by the untextured vertex shader.
+        float PositionY;
+
+        /// Stores the model-space position Z component consumed by the untextured vertex shader.
+        float PositionZ;
+
+        /// Stores the vertex-normal X component consumed by the untextured vertex shader.
+        float NormalX;
+
+        /// Stores the vertex-normal Y component consumed by the untextured vertex shader.
+        float NormalY;
+
+        /// Stores the vertex-normal Z component consumed by the untextured vertex shader.
+        float NormalZ;
+    };
 }
 
 #endif

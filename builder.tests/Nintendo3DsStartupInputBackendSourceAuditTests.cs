@@ -41,7 +41,7 @@ public class Nintendo3DsStartupInputBackendSourceAuditTests {
         Assert.Contains("pointerState.X = touchX;", sourceCode, StringComparison.Ordinal);
         Assert.Contains("pointerState.Y = touchY;", sourceCode, StringComparison.Ordinal);
         Assert.Contains("gamepadState.LeftStickX", sourceCode, StringComparison.Ordinal);
-        Assert.Contains("gamepadState.LeftStickY", sourceCode, StringComparison.Ordinal);
+        Assert.Contains("gamepadState.LeftStickY = static_cast<int16_t>(std::clamp(-static_cast<double>(circlePad.dy)", sourceCode, StringComparison.Ordinal);
         Assert.Contains("KEY_DRIGHT", sourceCode, StringComparison.Ordinal);
         Assert.Contains("KEY_DUP", sourceCode, StringComparison.Ordinal);
         Assert.Contains("KEY_A", sourceCode, StringComparison.Ordinal);
