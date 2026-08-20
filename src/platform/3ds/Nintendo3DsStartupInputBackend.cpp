@@ -72,7 +72,6 @@ namespace helengine::nintendo3ds {
         }
 
         InputFrameState frame {};
-        frame.Keyboard = KeyboardState();
         frame.Text = InputTextState();
 
         InputPointerState pointerState {};
@@ -84,16 +83,6 @@ namespace helengine::nintendo3ds {
         pointerState.ScrollDelta = 0;
         pointerState.SetButtonDown(InputPointerButton::Primary, touchIsDown);
         frame.Pointer = pointerState;
-
-        frame.Mouse = MouseState(
-            touchX,
-            touchY,
-            0,
-            touchIsDown ? ButtonState::Pressed : ButtonState::Released,
-            ButtonState::Released,
-            ButtonState::Released,
-            ButtonState::Released,
-            ButtonState::Released);
 
         Array<InputGamepadState>* gamepadStorage = UsePrimaryCachedGamepads ? PrimaryCachedGamepads : SecondaryCachedGamepads;
         frame.Gamepads = gamepadStorage;
