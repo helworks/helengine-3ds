@@ -185,6 +185,13 @@ public static class Nintendo3DsPlatformDefinitionFactory {
                             true,
                             []),
                         new PlatformSettingDefinition(
+                            PlatformCodegenSettingIds.EnabledFeatures,
+                            "Enabled Runtime Features",
+                            PlatformSettingKind.Text,
+                            "host_file_system",
+                            true,
+                            []),
+                        new PlatformSettingDefinition(
                             "generated-math-convention",
                             "Generated Math Convention",
                             PlatformSettingKind.Text,

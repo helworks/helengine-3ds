@@ -1,9 +1,25 @@
+using helengine.baseplatform.Definitions;
+
 namespace helengine.nintendo3ds.builder.tests;
 
 /// <summary>
 /// Audits the Nintendo 3DS boot host source so generated-core startup and startup-scene materialization stay explicitly wired.
 /// </summary>
 public class Nintendo3DsBootHostSourceAuditTests {
+    /// <summary>
+    /// Ensures the native 3DS boot host receives the generated host filesystem source it references outside managed reachability analysis.
+    /// </summary>
+    [Fact]
+    public void PlatformDefinition_force_enables_host_file_system_runtime_feature() {
+        PlatformDefinition definition = Nintendo3DsPlatformDefinitionFactory.Create();
+        PlatformCodegenProfileDefinition codegenProfile = Assert.Single(definition.CodegenProfiles);
+        PlatformSettingDefinition enabledFeatures = Assert.Single(
+            codegenProfile.Settings,
+            setting => setting.SettingId == PlatformCodegenSettingIds.EnabledFeatures);
+
+        Assert.Equal("host_file_system", enabledFeatures.DefaultValue);
+    }
+
     /// <summary>
     /// Verifies the Nintendo 3DS boot host initializes generated core with the real Nintendo 3DS 3D renderer before startup-scene materialization.
     /// </summary>
