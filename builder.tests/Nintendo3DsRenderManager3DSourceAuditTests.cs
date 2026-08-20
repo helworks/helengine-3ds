@@ -43,6 +43,19 @@ public class Nintendo3DsRenderManager3DSourceAuditTests {
     }
 
     /// <summary>
+    /// Verifies Nintendo 3DS world matrices compose scale before rotation, matching the engine row-vector transform convention.
+    /// </summary>
+    [Fact]
+    public void Source_whenWorldTransformIsBuilt_composesScaleBeforeRotation() {
+        string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        string rendererSourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsRenderManager3D.cpp");
+        string rendererSourceCode = File.ReadAllText(rendererSourcePath);
+
+        Assert.Contains("float4x4::Multiply__ref0_ref1_out2(size, rotation, rotationScale);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("float4x4::Multiply__ref0_ref1_out2(rotation, size, rotationScale);", rendererSourceCode, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies the Nintendo 3DS runtime-model build path expands indexed mesh positions into a platform-owned triangle stream for citro3d submission.
     /// </summary>
     [Fact]
