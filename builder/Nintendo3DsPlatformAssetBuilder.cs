@@ -164,6 +164,8 @@ public sealed class Nintendo3DsPlatformAssetBuilder : IPlatformAssetBuilder {
             request.WorkingRoot,
             request.OutputRoot,
             request.GeneratedCoreCppRootPath);
+        workspace.GameName = SanitizeSmdhText(ReadOptionalBuildOption(request.SelectedBuildOptionValues, "game-name"));
+        workspace.GameDescription = SanitizeSmdhText(ReadOptionalBuildOption(request.SelectedBuildOptionValues, "game-description"));
         PlatformBuildScene effectiveStartupScene = FindStartupScene(request.Manifest);
         string packageSourceRootPath = Nintendo3DsBuildPathConventions.ResolvePackageSourceRootPath(request.WorkingRoot);
         ValidatePackageSourceRootPath(packageSourceRootPath);
@@ -260,6 +262,37 @@ public sealed class Nintendo3DsPlatformAssetBuilder : IPlatformAssetBuilder {
         }
 
         return value;
+    }
+
+    /// <summary>
+    /// Reads one optional Nintendo 3DS build option value, returning an empty string when absent.
+    /// </summary>
+    /// <param name="values">Selected build option values keyed by option id.</param>
+    /// <param name="key">Build option id to resolve.</param>
+    /// <returns>Resolved build option value, or an empty string when the option is not selected.</returns>
+    static string ReadOptionalBuildOption(IReadOnlyDictionary<string, string> values, string key) {
+        if (values == null) {
+            throw new ArgumentNullException(nameof(values));
+        } else if (string.IsNullOrWhiteSpace(key)) {
+            throw new ArgumentException("Build option id must be provided.", nameof(key));
+        }
+
+        return values.TryGetValue(key, out string value) && value != null
+            ? value
+            : string.Empty;
+    }
+
+    /// <summary>
+    /// Trims one authored SMDH metadata value so shell-hostile whitespace never reaches the smdhtool invocation.
+    /// </summary>
+    /// <param name="value">Authored SMDH text value.</param>
+    /// <returns>Sanitized SMDH text value.</returns>
+    static string SanitizeSmdhText(string value) {
+        if (string.IsNullOrWhiteSpace(value)) {
+            return string.Empty;
+        }
+
+        return value.Trim();
     }
 
     /// <summary>

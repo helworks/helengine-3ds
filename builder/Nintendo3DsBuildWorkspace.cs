@@ -38,6 +38,16 @@ public sealed class Nintendo3DsBuildWorkspace {
     }
 
     /// <summary>
+    /// Gets or sets the game name stamped into the packaged SMDH metadata; empty keeps the toolchain default.
+    /// </summary>
+    public string GameName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the game description stamped into the packaged SMDH metadata; empty keeps the toolchain default.
+    /// </summary>
+    public string GameDescription { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets the Nintendo 3DS repository root that owns the native build inputs.
     /// </summary>
     public string RepositoryRootPath { get; }

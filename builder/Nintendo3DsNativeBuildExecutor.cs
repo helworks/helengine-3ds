@@ -24,7 +24,9 @@ public sealed class Nintendo3DsNativeBuildExecutor : INintendo3DsNativeBuildExec
             workspace,
             cancellationToken,
             "HELENGINE_3DS_ROMFS_ROOT=" + workspace.ContainerRomFsRootPath,
-            "HELENGINE_CORE_CPP_ROOT=" + workspace.ContainerGeneratedCoreRootPath);
+            "HELENGINE_CORE_CPP_ROOT=" + workspace.ContainerGeneratedCoreRootPath,
+            "HELENGINE_3DS_GAME_TITLE=" + workspace.GameName,
+            "HELENGINE_3DS_GAME_SUBTITLE=" + workspace.GameDescription);
 
         if (!File.Exists(workspace.RepositoryPackagePath)) {
             throw new InvalidOperationException("Nintendo 3DS package output was not produced.");

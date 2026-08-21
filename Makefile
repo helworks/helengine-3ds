@@ -21,6 +21,16 @@ export _3DSXFLAGS
 include $(DEVKITARM)/3ds_rules
 
 TARGET := helengine_3ds
+
+# Editor-authored SMDH metadata; blank values keep the devkitARM defaults.
+HELENGINE_3DS_GAME_TITLE ?=
+HELENGINE_3DS_GAME_SUBTITLE ?=
+ifneq ($(strip $(HELENGINE_3DS_GAME_TITLE)),)
+APP_TITLE := $(HELENGINE_3DS_GAME_TITLE)
+endif
+ifneq ($(strip $(HELENGINE_3DS_GAME_SUBTITLE)),)
+APP_DESCRIPTION := $(HELENGINE_3DS_GAME_SUBTITLE)
+endif
 BUILD := build
 SOURCES := \
 	src \

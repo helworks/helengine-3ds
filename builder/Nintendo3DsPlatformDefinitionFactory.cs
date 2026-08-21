@@ -88,6 +88,20 @@ public static class Nintendo3DsPlatformDefinitionFactory {
                     "default",
                     [
                         new PlatformSettingDefinition(
+                            "game-name",
+                            "Game Name",
+                            PlatformSettingKind.Text,
+                            "helengine",
+                            true,
+                            []),
+                        new PlatformSettingDefinition(
+                            "game-description",
+                            "Game Description",
+                            PlatformSettingKind.Text,
+                            "Made with helengine",
+                            true,
+                            []),
+                        new PlatformSettingDefinition(
                             "startup-top-screen-color",
                             "Startup Top Screen Color",
                             PlatformSettingKind.Text,
