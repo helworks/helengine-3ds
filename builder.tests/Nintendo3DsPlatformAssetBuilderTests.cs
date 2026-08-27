@@ -114,7 +114,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
         Assert.Equal((byte)0x40, cookedAsset.BaseColorG);
         Assert.Equal((byte)0x20, cookedAsset.BaseColorB);
         Assert.Equal((byte)0xFF, cookedAsset.BaseColorA);
-        Assert.Empty(result.ReferencedShaderAssetIds);
+        Assert.Empty(result.ReferencedShaderDependencies);
     }
 
     /// <summary>
