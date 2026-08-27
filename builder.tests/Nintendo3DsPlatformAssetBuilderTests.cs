@@ -262,7 +262,9 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 Array.Empty<PlatformBuildArtifact>(),
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             PlatformBuildRequest request = new(
                 manifest,
@@ -391,7 +393,8 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
                 new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()),
-                platformCookWorkItems);
+                platformCookWorkItems,
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             PlatformBuildRequest request = new(
                 manifest,
@@ -511,7 +514,8 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
                 new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()),
-                platformCookWorkItems);
+                platformCookWorkItems,
+                PlatformBuildRuntimeFeatureManifest.Empty);
             PlatformBuildRequest request = new(
                 manifest,
                 [new PlatformBuildTargetVariant("3ds-default", "3ds", "3ds", "3ds-default")],
@@ -612,7 +616,9 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 Array.Empty<PlatformBuildArtifact>(),
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             PlatformBuildRequest request = new(
                 manifest,
@@ -707,7 +713,9 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                 Array.Empty<PlatformBuildArtifact>(),
                 Array.Empty<PlatformBuildCodeModule>(),
                 Array.Empty<PlatformArtifactPlacement>(),
-                new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()));
+                new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()),
+                Array.Empty<PlatformCookWorkItem>(),
+                PlatformBuildRuntimeFeatureManifest.Empty);
 
             PlatformBuildRequest request = new(
                 manifest,

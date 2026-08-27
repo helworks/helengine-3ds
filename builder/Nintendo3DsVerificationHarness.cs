@@ -118,7 +118,9 @@ internal static class Nintendo3DsVerificationHarness {
             Array.Empty<PlatformBuildArtifact>(),
             Array.Empty<PlatformBuildCodeModule>(),
             Array.Empty<PlatformArtifactPlacement>(),
-            new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()));
+            new PlatformContainerWritePlan("3ds-romfs-package", Array.Empty<PlatformContainerArtifact>()),
+            Array.Empty<PlatformCookWorkItem>(),
+            PlatformBuildRuntimeFeatureManifest.Empty);
 
         return new PlatformBuildRequest(
             manifest,
