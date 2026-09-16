@@ -898,9 +898,7 @@ namespace helengine::nintendo3ds {
             return;
         }
 
-        byte4 fillColor = shape->get_FillColor();
-        byte4 baseColor = shape->get_Color();
-        u32 resolvedFillColor = fillColor.W > 0 ? ConvertColor(fillColor) : ConvertColor(baseColor);
+        u32 resolvedFillColor = ConvertColor(shape->get_FillColor());
         C2D_DrawRectSolid(
             position.X + static_cast<float>(ActiveViewportOffsetX),
             position.Y + static_cast<float>(ActiveViewportOffsetY),

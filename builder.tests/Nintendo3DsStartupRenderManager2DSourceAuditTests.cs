@@ -169,4 +169,17 @@ public class Nintendo3DsStartupRenderManager2DSourceAuditTests {
         Assert.Contains("viewport.Y * Nintendo3DsTopScreenHeight", sourceCode, StringComparison.Ordinal);
         Assert.DoesNotContain("viewport.Y * (Nintendo3DsTopScreenHeight + Nintendo3DsBottomScreenHeight)", sourceCode, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Verifies transparent rounded-rectangle fills stay transparent instead of falling back to the component's opaque white base color.
+    /// </summary>
+    [Fact]
+    public void Source_whenRoundedRectFillIsTransparent_preservesAuthoredFillAlpha() {
+        string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        string sourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsStartupRenderManager2D.cpp");
+        string sourceCode = File.ReadAllText(sourcePath);
+
+        Assert.Contains("u32 resolvedFillColor = ConvertColor(shape->get_FillColor());", sourceCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("fillColor.W > 0 ? ConvertColor(fillColor) : ConvertColor(baseColor)", sourceCode, StringComparison.Ordinal);
+    }
 }
