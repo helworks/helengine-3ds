@@ -992,6 +992,7 @@ namespace helengine::nintendo3ds {
             runtimeTexture = new Nintendo3DsRuntimeTexture();
             runtimeTexture->set_Id(cookedTextureAsset->get_Id());
             runtimeTexture->LoadFromRaw(cookedTextureAsset);
+            C3D_TexSetWrap(runtimeTexture->GetNativeTexture(), GPU_REPEAT, GPU_REPEAT);
             runtimeMaterial->SetOwnedDiffuseTexture(runtimeTexture);
             runtimeTexture = nullptr;
             ReleaseCookedTextureAsset(cookedTextureAsset);

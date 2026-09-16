@@ -111,6 +111,21 @@ public class Nintendo3DsRenderManager3DSourceAuditTests {
     }
 
     /// <summary>
+    /// Verifies cooked diffuse textures repeat for 3D material UVs while the shared runtime texture upload can retain its clamp default for 2D callers.
+    /// </summary>
+    [Fact]
+    public void Source_whenCookedDiffuseTextureIsAttached_configuresMaterialUvWrapping() {
+        string repositoryRootPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        string rendererSourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsRenderManager3D.cpp");
+        string rendererSourceCode = File.ReadAllText(rendererSourcePath);
+        string runtimeTextureSourcePath = Path.Combine(repositoryRootPath, "src", "platform", "3ds", "Nintendo3DsRuntimeTexture.cpp");
+        string runtimeTextureSourceCode = File.ReadAllText(runtimeTextureSourcePath);
+
+        Assert.Contains("C3D_TexSetWrap(runtimeTexture->GetNativeTexture(), GPU_REPEAT, GPU_REPEAT);", rendererSourceCode, StringComparison.Ordinal);
+        Assert.Contains("C3D_TexSetWrap(&NativeTexture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);", runtimeTextureSourceCode, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Verifies the Nintendo 3DS renderer initializes one citro3d shader program and submits solid-color triangle draws through the active top-screen pass.
     /// </summary>
     [Fact]
