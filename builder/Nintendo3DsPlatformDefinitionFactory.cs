@@ -239,6 +239,13 @@ public static class Nintendo3DsPlatformDefinitionFactory {
                             PlatformSettingKind.Text,
                             NativeFileSystemType,
                             true,
+                            []),
+                        new PlatformSettingDefinition(
+                            "codegen-use-rtti",
+                            "Use Compiler RTTI",
+                            PlatformSettingKind.Boolean,
+                            "true",
+                            true,
                             [])
                     ])
             ],
