@@ -246,6 +246,13 @@ public static class Nintendo3DsPlatformDefinitionFactory {
                             PlatformSettingKind.Boolean,
                             "true",
                             true,
+                            []),
+                        new PlatformSettingDefinition(
+                            "codegen-use-exceptions",
+                            "Use C++ Exceptions",
+                            PlatformSettingKind.Boolean,
+                            "true",
+                            true,
                             [])
                     ])
             ],
