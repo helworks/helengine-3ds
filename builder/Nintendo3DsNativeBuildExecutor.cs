@@ -18,8 +18,7 @@ public sealed class Nintendo3DsNativeBuildExecutor : INintendo3DsNativeBuildExec
 
         Directory.CreateDirectory(workspace.OutputRootPath);
         Directory.CreateDirectory(workspace.RomFsRootPath);
-
-        RunDockerMake(workspace, cancellationToken, "clean");
+        Directory.CreateDirectory(workspace.NativeObjectCacheRootPath);
         RunDockerMake(
             workspace,
             cancellationToken,
@@ -57,6 +56,8 @@ public sealed class Nintendo3DsNativeBuildExecutor : INintendo3DsNativeBuildExec
         startInfo.ArgumentList.Add("--rm");
         startInfo.ArgumentList.Add("-v");
         startInfo.ArgumentList.Add(workspace.RepositoryRootPath + ":/workspace");
+        startInfo.ArgumentList.Add("-v");
+        startInfo.ArgumentList.Add(workspace.NativeObjectCacheRootPath + ":/workspace/build");
         startInfo.ArgumentList.Add("-v");
         startInfo.ArgumentList.Add(workspace.WorkingRootPath + ":/workspace-staging");
         startInfo.ArgumentList.Add("-v");

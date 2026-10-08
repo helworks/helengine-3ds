@@ -163,7 +163,8 @@ public sealed class Nintendo3DsPlatformAssetBuilder : IPlatformAssetBuilder {
             repositoryRootPath,
             request.WorkingRoot,
             request.OutputRoot,
-            request.GeneratedCoreCppRootPath);
+            request.GeneratedCoreCppRootPath,
+            request.NativeObjectCacheRoot);
         workspace.GameName = SanitizeSmdhText(ReadOptionalBuildOption(request.SelectedBuildOptionValues, "game-name"));
         workspace.GameDescription = SanitizeSmdhText(ReadOptionalBuildOption(request.SelectedBuildOptionValues, "game-description"));
         PlatformBuildScene effectiveStartupScene = FindStartupScene(request.Manifest);

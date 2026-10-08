@@ -136,7 +136,7 @@ export INCLUDE := $(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 export LIBPATHS := $(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 export _3DSXDEPS
 
-.PHONY: all clean
+.PHONY: $(BUILD) all clean
 
 all: $(BUILD)
 
@@ -150,8 +150,21 @@ clean:
 else
 
 DEPENDS := $(OFILES:.o=.d)
+NATIVE_BUILD_CONFIG := $(CURDIR)/.native-build-config
+PACKAGE_BUILD_CONFIG := $(CURDIR)/.package-build-config
+.PHONY: FORCE_NATIVE_BUILD_CONFIG
+FORCE_NATIVE_BUILD_CONFIG:
+$(NATIVE_BUILD_CONFIG): FORCE_NATIVE_BUILD_CONFIG
+	@printf '%s\n' '$(CC) $(shell $(CC) --version | head -n 1) $(CXX) $(shell $(CXX) --version | head -n 1) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) $(HELENGINE_CORE_CPP_ROOT) $(HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE) $(HELENGINE_3DS_SKIP_DRAW_ARRAYS) $(HELENGINE_3DS_SAFE_DRAW_ARRAYS) $(HELENGINE_3DS_RENDER_TRACE_ENABLED)' > $@.tmp
+	@if ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm $@.tmp; fi
+$(OFILES) $(OUTPUT).elf: $(NATIVE_BUILD_CONFIG)
+.PHONY: FORCE_PACKAGE_BUILD_CONFIG
+FORCE_PACKAGE_BUILD_CONFIG:
+$(PACKAGE_BUILD_CONFIG): FORCE_PACKAGE_BUILD_CONFIG
+	@printf '%s\n' '$(HELENGINE_3DS_GAME_TITLE) $(HELENGINE_3DS_GAME_SUBTITLE)' > $@.tmp
+	@if ! cmp -s $@.tmp $@; then mv $@.tmp $@; else rm $@.tmp; fi
 
-$(OUTPUT).3dsx: $(OUTPUT).elf $(_3DSXDEPS)
+$(OUTPUT).3dsx: $(OUTPUT).elf $(PACKAGE_BUILD_CONFIG) $(_3DSXDEPS) $(shell find $(ROMFS_ROOT) -type f 2>/dev/null)
 
 $(OFILES_SOURCES) : $(HFILES)
 

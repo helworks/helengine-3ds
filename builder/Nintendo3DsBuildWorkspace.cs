@@ -9,6 +9,7 @@ public sealed class Nintendo3DsBuildWorkspace {
     /// </summary>
     /// <param name="repositoryRootPath">Nintendo 3DS repository root that owns the native build.</param>
     /// <param name="workingRootPath">Working root used for staged build inputs.</param>
+    /// <param name="nativeObjectCacheRootPath">Persistent native build directory for this project and profile.</param>
     /// <param name="outputRootPath">Output root that receives the exported package.</param>
     /// <param name="generatedCoreRootPath">Generated core C++ root prepared by the editor.</param>
     /// <param name="romFsRootPath">Staged RomFS root on the host filesystem.</param>
@@ -19,6 +20,7 @@ public sealed class Nintendo3DsBuildWorkspace {
     Nintendo3DsBuildWorkspace(
         string repositoryRootPath,
         string workingRootPath,
+        string nativeObjectCacheRootPath,
         string outputRootPath,
         string generatedCoreRootPath,
         string romFsRootPath,
@@ -28,6 +30,7 @@ public sealed class Nintendo3DsBuildWorkspace {
         string exportPackagePath) {
         RepositoryRootPath = repositoryRootPath;
         WorkingRootPath = workingRootPath;
+        NativeObjectCacheRootPath = nativeObjectCacheRootPath;
         OutputRootPath = outputRootPath;
         GeneratedCoreRootPath = generatedCoreRootPath;
         RomFsRootPath = romFsRootPath;
@@ -56,6 +59,11 @@ public sealed class Nintendo3DsBuildWorkspace {
     /// Gets the working root used for staged build inputs.
     /// </summary>
     public string WorkingRootPath { get; }
+
+    /// <summary>
+    /// Gets the persistent native build directory for this project and profile.
+    /// </summary>
+    public string NativeObjectCacheRootPath { get; }
 
     /// <summary>
     /// Gets the output root that receives the exported package.
@@ -97,6 +105,7 @@ public sealed class Nintendo3DsBuildWorkspace {
     /// </summary>
     /// <param name="repositoryRootPath">Nintendo 3DS repository root that owns the native build.</param>
     /// <param name="workingRootPath">Working root used for staged build inputs.</param>
+    /// <param name="nativeObjectCacheRootPath">Persistent native build directory for this project and profile.</param>
     /// <param name="outputRootPath">Output root that receives the exported package.</param>
     /// <param name="generatedCoreRootPath">Generated core C++ root prepared by the editor.</param>
     /// <returns>Resolved Nintendo 3DS build workspace.</returns>
@@ -104,7 +113,8 @@ public sealed class Nintendo3DsBuildWorkspace {
         string repositoryRootPath,
         string workingRootPath,
         string outputRootPath,
-        string generatedCoreRootPath) {
+        string generatedCoreRootPath,
+        string nativeObjectCacheRootPath = "") {
         if (string.IsNullOrWhiteSpace(repositoryRootPath)) {
             throw new ArgumentException("Repository root path must be provided.", nameof(repositoryRootPath));
         } else if (string.IsNullOrWhiteSpace(workingRootPath)) {
@@ -117,15 +127,19 @@ public sealed class Nintendo3DsBuildWorkspace {
 
         string fullRepositoryRootPath = Path.GetFullPath(repositoryRootPath);
         string fullWorkingRootPath = Path.GetFullPath(workingRootPath);
+        string fullNativeObjectCacheRootPath = string.IsNullOrWhiteSpace(nativeObjectCacheRootPath)
+            ? Path.Combine(fullRepositoryRootPath, "build")
+            : Path.GetFullPath(nativeObjectCacheRootPath);
         string fullOutputRootPath = Path.GetFullPath(outputRootPath);
         string fullGeneratedCoreRootPath = Path.GetFullPath(generatedCoreRootPath);
         string romFsRootPath = Path.Combine(fullWorkingRootPath, "builder", "3ds", "romfs");
-        string repositoryPackagePath = Path.Combine(fullRepositoryRootPath, "build", "helengine_3ds.3dsx");
+        string repositoryPackagePath = Path.Combine(fullNativeObjectCacheRootPath, "helengine_3ds.3dsx");
         string exportPackagePath = Path.Combine(fullOutputRootPath, "helengine_3ds.3dsx");
 
         return new Nintendo3DsBuildWorkspace(
             fullRepositoryRootPath,
             fullWorkingRootPath,
+            fullNativeObjectCacheRootPath,
             fullOutputRootPath,
             fullGeneratedCoreRootPath,
             romFsRootPath,
