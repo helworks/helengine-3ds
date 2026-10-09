@@ -13,6 +13,7 @@
 #include "TextureAssetColorFormat.hpp"
 #include "byte4.hpp"
 #include "runtime/array.hpp"
+#include "platform/3ds/Nintendo3DsNativeTexture.hpp"
 
 namespace helengine::nintendo3ds {
     namespace {
@@ -211,8 +212,8 @@ namespace helengine::nintendo3ds {
                 data->get_Id().c_str(),
                 static_cast<unsigned>(data->Width),
                 static_cast<unsigned>(data->Height),
-                static_cast<int32_t>(data->ColorFormat),
-                static_cast<int32_t>(data->AlphaPrecision),
+                static_cast<int>(data->ColorFormat),
+                static_cast<int>(data->AlphaPrecision),
                 static_cast<unsigned>(firstColor.X),
                 static_cast<unsigned>(firstColor.Y),
                 static_cast<unsigned>(firstColor.Z),
@@ -255,6 +256,11 @@ namespace helengine::nintendo3ds {
             throw std::invalid_argument("Nintendo 3DS runtime textures require nonzero dimensions.");
         } else if (data->Colors == nullptr || data->Colors->Data == nullptr) {
             throw std::invalid_argument("Nintendo 3DS runtime textures require one color payload.");
+        }
+
+        if (data->ColorFormat == TextureAssetColorFormat::Nintendo3DsNative) {
+            LoadNative(data);
+            return;
         }
 
         int32_t textureWidth = static_cast<int32_t>(data->Width);
@@ -371,6 +377,25 @@ namespace helengine::nintendo3ds {
         C3D_TexFlush(&NativeTexture);
         set_Width(ActualWidth);
         set_Height(ActualHeight);
+    }
+
+    /// Retains the original PICA encoding and tiles in owned citro3d storage shared by sprites, fonts and models.
+    void Nintendo3DsRuntimeTexture::LoadNative(TextureAsset* data) {
+        const auto layout = Nintendo3DsNativeTexture::Read(data->Colors->Data, static_cast<std::size_t>(data->Colors->Length),
+            data->PaletteColors == nullptr ? 0 : static_cast<std::size_t>(data->PaletteColors->Length), data->Width, data->Height);
+        Reset();
+        if (!C3D_TexInit(&NativeTexture, static_cast<u16>(layout.StorageWidth), static_cast<u16>(layout.StorageHeight), static_cast<GPU_TEXCOLOR>(layout.Format))) {
+            throw std::runtime_error("Nintendo 3DS native texture allocation failed.");
+        }
+        NativeTextureInitialized = true;
+        ActualWidth = static_cast<u16>(layout.Width); ActualHeight = static_cast<u16>(layout.Height);
+        PaddedWidth = static_cast<u16>(layout.StorageWidth); PaddedHeight = static_cast<u16>(layout.StorageHeight);
+        std::memcpy(NativeTexture.data, data->Colors->Data + 32, layout.TexelBytes);
+        C3D_TexSetFilter(&NativeTexture, GPU_LINEAR, GPU_LINEAR);
+        C3D_TexSetWrap(&NativeTexture, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+        C3D_TexFlush(&NativeTexture);
+        DebugTraceSummary = "TextureLoad: native N3T1 format=" + std::to_string(layout.Format) + " bytes=" + std::to_string(layout.TexelBytes);
+        set_Width(ActualWidth); set_Height(ActualHeight);
     }
 
     /// Returns whether one native citro3d texture upload exists for this runtime texture.

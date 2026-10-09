@@ -49,8 +49,8 @@ public sealed class Nintendo3DsPlatformCookSourceProcessor : INintendo3DsPlatfor
             throw new ArgumentNullException(nameof(settings));
         }
 
-        TextureAsset decodedTextureAsset = LoadTextureSourceAsset(sourceAssetPath);
-        TextureAsset cookedTextureAsset = ApplySettings(decodedTextureAsset, settings);
+        using TextureAsset decodedTextureAsset = LoadTextureSourceAsset(sourceAssetPath);
+        TextureAsset cookedTextureAsset = Nintendo3DsTextureCooker.Apply(decodedTextureAsset, settings);
         cookedTextureAsset.Id = assetId;
         cookedTextureAsset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(assetId);
         return cookedTextureAsset;
@@ -82,10 +82,12 @@ public sealed class Nintendo3DsPlatformCookSourceProcessor : INintendo3DsPlatfor
             sourceTextureAsset = SourceFontAtlasTextureImporter.Import(sourceAssetPath);
         }
 
-        TextureAsset cookedTextureAsset = ApplySettings(sourceTextureAsset, settings);
-        cookedTextureAsset.Id = assetId;
-        cookedTextureAsset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(assetId);
-        return cookedTextureAsset;
+        using (sourceTextureAsset) {
+            TextureAsset cookedTextureAsset = Nintendo3DsTextureCooker.Apply(sourceTextureAsset, settings);
+            cookedTextureAsset.Id = assetId;
+            cookedTextureAsset.RuntimeAssetId = RuntimeAssetIdGenerator.Generate(assetId);
+            return cookedTextureAsset;
+        }
     }
 
     /// <summary>
@@ -99,8 +101,10 @@ public sealed class Nintendo3DsPlatformCookSourceProcessor : INintendo3DsPlatfor
         }
 
         using FileStream stream = new(sourceAssetPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        FontAsset fontAsset = global::helengine.files.FontAssetBinarySerializer.Deserialize(stream);
-        return fontAsset.SourceTextureAsset;
+        using FontAsset fontAsset = global::helengine.files.FontAssetBinarySerializer.Deserialize(stream);
+        TextureAsset source = fontAsset.SourceTextureAsset;
+        fontAsset.SourceTextureAsset = null;
+        return source;
     }
 
     /// <summary>
@@ -120,7 +124,8 @@ public sealed class Nintendo3DsPlatformCookSourceProcessor : INintendo3DsPlatfor
             && !string.Equals(extension, ".tga", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(extension, ".jpg", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(extension, ".jpeg", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(extension, ".bmp", StringComparison.OrdinalIgnoreCase)) {
+            && !string.Equals(extension, ".bmp", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(extension, ".t3x", StringComparison.OrdinalIgnoreCase)) {
             return null;
         }
 
@@ -218,7 +223,7 @@ public sealed class Nintendo3DsPlatformCookSourceProcessor : INintendo3DsPlatfor
         }
 
         string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(sourcePath);
-        string[] candidateExtensions = [".png", ".tga", ".jpg", ".jpeg", ".bmp"];
+        string[] candidateExtensions = [".png", ".tga", ".jpg", ".jpeg", ".bmp", ".t3x"];
         for (int index = 0; index < candidateExtensions.Length; index++) {
             string candidatePath = Path.Combine(directoryPath, fileNameWithoutExtension + candidateExtensions[index]);
             if (!File.Exists(candidatePath)) {
@@ -232,84 +237,4 @@ public sealed class Nintendo3DsPlatformCookSourceProcessor : INintendo3DsPlatfor
         return false;
     }
 
-    /// <summary>
-    /// Applies the Nintendo 3DS shared generic texture settings to one decoded texture asset.
-    /// </summary>
-    /// <param name="asset">Decoded texture asset to process.</param>
-    /// <param name="settings">Resolved 3DS texture processor settings.</param>
-    /// <returns>Processed texture asset.</returns>
-    static TextureAsset ApplySettings(TextureAsset asset, TextureAssetProcessorSettings settings) {
-        if (asset == null) {
-            throw new ArgumentNullException(nameof(asset));
-        } else if (settings == null) {
-            throw new ArgumentNullException(nameof(settings));
-        } else if (asset.Width < 1 || asset.Height < 1) {
-            throw new InvalidOperationException("Texture assets must have positive dimensions.");
-        } else if (asset.Colors == null) {
-            throw new InvalidOperationException("Texture assets must include color data.");
-        } else if (settings.MaxResolution < 0) {
-            throw new InvalidOperationException("Texture max resolution cannot be negative.");
-        } else if (!string.Equals(settings.ColorFormatId, TextureAssetColorFormat.Rgba32.ToString(), StringComparison.Ordinal)) {
-            throw new InvalidOperationException($"Nintendo 3DS texture color format '{settings.ColorFormatId}' is not supported by the current builder-owned cook path.");
-        } else if (settings.AlphaPrecision != TextureAssetAlphaPrecision.A8) {
-            throw new InvalidOperationException($"Nintendo 3DS texture alpha precision '{settings.AlphaPrecision}' is not supported by the current builder-owned cook path.");
-        }
-
-        if (settings.MaxResolution > 0 && (asset.Width > settings.MaxResolution || asset.Height > settings.MaxResolution)) {
-            return ResizeToMaxResolution(asset, settings.MaxResolution);
-        }
-
-        return asset;
-    }
-
-    /// <summary>
-    /// Builds one resized texture asset whose larger axis matches the supplied cap.
-    /// </summary>
-    /// <param name="asset">Texture asset to resize.</param>
-    /// <param name="maxResolution">Maximum allowed width or height.</param>
-    /// <returns>Resized texture asset.</returns>
-    static TextureAsset ResizeToMaxResolution(TextureAsset asset, int maxResolution) {
-        double largestDimension = Math.Max(asset.Width, asset.Height);
-        double scale = maxResolution / largestDimension;
-        int resizedWidth = Math.Max(1, (int)Math.Round(asset.Width * scale));
-        int resizedHeight = Math.Max(1, (int)Math.Round(asset.Height * scale));
-        byte[] resizedColors = new byte[resizedWidth * resizedHeight * 4];
-
-        for (int y = 0; y < resizedHeight; y++) {
-            int sourceY = GetSourceCoordinate(y, resizedHeight, asset.Height);
-            for (int x = 0; x < resizedWidth; x++) {
-                int sourceX = GetSourceCoordinate(x, resizedWidth, asset.Width);
-                int sourceIndex = ((sourceY * asset.Width) + sourceX) * 4;
-                int targetIndex = ((y * resizedWidth) + x) * 4;
-                Buffer.BlockCopy(asset.Colors, sourceIndex, resizedColors, targetIndex, 4);
-            }
-        }
-
-        return new TextureAsset {
-            Id = asset.Id,
-            RuntimeAssetId = asset.RuntimeAssetId,
-            Width = (ushort)resizedWidth,
-            Height = (ushort)resizedHeight,
-            ColorFormat = TextureAssetColorFormat.Rgba32,
-            AlphaPrecision = TextureAssetAlphaPrecision.A8,
-            Colors = resizedColors,
-            PaletteColors = Array.Empty<byte>()
-        };
-    }
-
-    /// <summary>
-    /// Resolves one source-axis coordinate for nearest-neighbor resizing.
-    /// </summary>
-    /// <param name="targetCoordinate">Zero-based coordinate in the resized dimension.</param>
-    /// <param name="targetSize">Size of the resized dimension.</param>
-    /// <param name="sourceSize">Size of the source dimension.</param>
-    /// <returns>Nearest source coordinate.</returns>
-    static int GetSourceCoordinate(int targetCoordinate, int targetSize, int sourceSize) {
-        if (targetSize <= 1 || sourceSize <= 1) {
-            return 0;
-        }
-
-        double ratio = targetCoordinate / (double)(targetSize - 1);
-        return Math.Clamp((int)Math.Round(ratio * (sourceSize - 1)), 0, sourceSize - 1);
-    }
 }

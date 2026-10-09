@@ -59,16 +59,7 @@ public static class Nintendo3DsPlatformDefinitionFactory {
     /// </summary>
     /// <returns>Texture capability metadata for Nintendo 3DS builder-owned texture cook contracts.</returns>
     static PlatformTextureFormatCapabilityDefinition CreateTextureFormatCapabilities() {
-        return new PlatformTextureFormatCapabilityDefinition(
-            [
-                TextureAssetColorFormat.Rgba32.ToString()
-            ],
-            [
-                TextureAssetAlphaPrecision.A8
-            ],
-            [
-                new PlatformTextureFormatCombinationDefinition(TextureAssetColorFormat.Rgba32.ToString(), TextureAssetAlphaPrecision.A8)
-            ]);
+        return Nintendo3DsTextureFormatCapabilities.Create();
     }
 
     /// <summary>

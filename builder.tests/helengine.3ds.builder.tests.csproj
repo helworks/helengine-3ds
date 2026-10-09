@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Fixtures\tex3ds\*.t3x" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\tex3ds\*.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\builder\helengine.3ds.builder.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="$(HelengineRoot)\engine\helengine.baseplatform\helengine.baseplatform.csproj" SkipGetTargetFrameworkProperties="true" />
     <ProjectReference Include="$(HelengineRoot)\engine\helengine.files\helengine.files.csproj" SkipGetTargetFrameworkProperties="true" />

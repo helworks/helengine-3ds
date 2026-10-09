@@ -588,12 +588,12 @@ public sealed class Nintendo3DsPlatformAssetBuilder : IPlatformAssetBuilder {
         Directory.CreateDirectory(destinationDirectoryPath);
 
         if (string.Equals(workItem.SourceAssetKind, "texture", StringComparison.OrdinalIgnoreCase)) {
-            TextureAsset cookedTextureAsset = PlatformCookSourceProcessor.CookTexture(workItem.SourceAssetPath, assetId, settings);
+            using TextureAsset cookedTextureAsset = PlatformCookSourceProcessor.CookTexture(workItem.SourceAssetPath, assetId, settings);
             File.WriteAllBytes(destinationPath, global::helengine.files.AssetSerializer.SerializeToBytes(cookedTextureAsset));
             return;
         } else if (string.Equals(workItem.SourceAssetKind, "font-atlas-texture", StringComparison.OrdinalIgnoreCase)) {
             string fontAtlasSourcePath = ResolveFontAtlasCookSourcePath(workItem, packageSourceRootPath);
-            TextureAsset cookedTextureAsset = PlatformCookSourceProcessor.CookFontAtlasTexture(fontAtlasSourcePath, assetId, settings);
+            using TextureAsset cookedTextureAsset = PlatformCookSourceProcessor.CookFontAtlasTexture(fontAtlasSourcePath, assetId, settings);
             File.WriteAllBytes(destinationPath, global::helengine.files.AssetSerializer.SerializeToBytes(cookedTextureAsset));
             return;
         }

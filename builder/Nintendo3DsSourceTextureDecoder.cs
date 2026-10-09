@@ -20,6 +20,10 @@ public sealed class Nintendo3DsSourceTextureDecoder {
             throw new FileNotFoundException("Source texture file was not found.", sourceAssetPath);
         }
 
+        if (string.Equals(Path.GetExtension(sourceAssetPath), ".t3x", StringComparison.OrdinalIgnoreCase)) {
+            using FileStream stream = File.OpenRead(sourceAssetPath);
+            return new helengine.editor.Nintendo3DsT3xTextureImporter().ImportTexture(stream);
+        }
         using Bitmap bitmap = new(sourceAssetPath);
         if (bitmap.Width < 1 || bitmap.Height < 1) {
             throw new InvalidOperationException("Source textures must have positive dimensions.");

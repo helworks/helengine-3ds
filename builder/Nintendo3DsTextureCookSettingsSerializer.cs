@@ -16,6 +16,7 @@ public static class Nintendo3DsTextureCookSettingsSerializer {
             throw new ArgumentNullException(nameof(settings));
         }
 
+        Nintendo3DsTextureCooker.ValidateSettings(settings);
         return JsonSerializer.Serialize(new {
             maxResolution = settings.MaxResolution,
             colorFormat = settings.ColorFormatId,
@@ -68,10 +69,12 @@ public static class Nintendo3DsTextureCookSettingsSerializer {
             throw new InvalidOperationException($"Unsupported Nintendo 3DS texture alpha precision '{alphaPrecisionName}'.");
         }
 
-        return new TextureAssetProcessorSettings {
+        TextureAssetProcessorSettings settings = new TextureAssetProcessorSettings {
             MaxResolution = maxResolution,
             ColorFormatId = colorFormatId,
             AlphaPrecision = alphaPrecision
         };
+        Nintendo3DsTextureCooker.ValidateSettings(settings);
+        return settings;
     }
 }

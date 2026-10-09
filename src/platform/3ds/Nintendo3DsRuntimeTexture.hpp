@@ -80,6 +80,9 @@ namespace helengine::nintendo3ds {
 
         /// Releases any currently owned Nintendo 3DS native texture upload.
         void Reset();
+
+        /// Uploads a checked N3T1 payload directly to citro3d without a display transfer or RGBA expansion.
+        void LoadNative(TextureAsset* data);
     };
 }
 
