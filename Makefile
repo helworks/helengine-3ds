@@ -1,4 +1,5 @@
 DEVKITPRO ?= /opt/devkitpro
+.DEFAULT_GOAL := all
 DEVKITARM ?= $(DEVKITPRO)/devkitARM
 CTRULIB ?= $(DEVKITPRO)/libctru
 HELENGINE_CORE_CPP_ROOT ?=
@@ -150,6 +151,8 @@ clean:
 else
 
 DEPENDS := $(OFILES:.o=.d)
+.PHONY: all
+all: $(OUTPUT).3dsx
 NATIVE_BUILD_CONFIG := $(CURDIR)/.native-build-config
 PACKAGE_BUILD_CONFIG := $(CURDIR)/.package-build-config
 .PHONY: FORCE_NATIVE_BUILD_CONFIG

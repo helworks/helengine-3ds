@@ -10,6 +10,7 @@
 
 #include "byte4.hpp"
 #include "float4.hpp"
+#include "SpriteQuad2D.hpp"
 #include "IRenderVisitor2D.hpp"
 #include "RenderManager2D.hpp"
 
@@ -34,6 +35,10 @@ namespace helengine::nintendo3ds {
         /// <param name="cookedAssetPath">Cooked texture asset path requested by the runtime scene loader.</param>
         /// <returns>Uploaded Nintendo 3DS runtime texture.</returns>
         RuntimeTexture* BuildTextureFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) override;
+
+        /// Uploads an RGBA8 subregion into a live RGBA8 PICA texture after validating storage and waiting for previous readers.
+        void UpdateTextureRegionCore(RuntimeTexture* texture, int32_t x, int32_t y, int32_t width, int32_t height,
+            Array<uint8_t>* rgba8, int32_t sourceRowPitch) override;
 
         /// Captures one sprite draw request in generated-core render order for later rendering.
         /// <param name="sprite">Sprite draw request issued by runtime code.</param>
@@ -111,13 +116,13 @@ namespace helengine::nintendo3ds {
 
             /// Stores the generated-core drawable pointer to render.
             IDrawable2D* Drawable;
+
+            /// Exact sprite geometry resolved at capture time; unused by other primitive kinds.
+            SpriteQuad2D Geometry;
         };
 
         /// Converts one generated-core byte color into the citro2d RGBA layout expected by the Nintendo 3DS GPU.
         u32 ConvertColor(byte4 color) const;
-
-        /// Resolves one sprite draw size from authored size overrides or runtime texture dimensions.
-        float4 ResolveSpriteBounds(ISpriteDrawable2D* sprite) const;
 
         /// Resolves one text string using generated-core wrapping rules when authored wrapping is enabled.
         std::string ResolveTextContent(ITextDrawable2D* text) const;
@@ -170,7 +175,7 @@ namespace helengine::nintendo3ds {
             int32_t& viewportHeight) const;
 
         /// Renders one captured sprite draw request onto the active top-screen citro2d scene.
-        void RenderSprite(ISpriteDrawable2D* sprite);
+        void RenderSprite(ISpriteDrawable2D* sprite, const SpriteQuad2D& quad);
 
         /// Renders one captured text draw request onto the active top-screen citro2d scene.
         void RenderText(ITextDrawable2D* text);
@@ -180,6 +185,9 @@ namespace helengine::nintendo3ds {
 
         /// Stores the active screen targeted while one runtime camera queue is being captured.
         Nintendo3DsScreenTarget ActiveScreenTarget;
+
+        /// Indicates that citro2d commands are being submitted and must be flushed before a texture mutation.
+        bool IsRenderingFrame;
 
         /// Stores the active screen-local viewport X offset used during capture and playback.
         int32_t ActiveViewportOffsetX;

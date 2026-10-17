@@ -8,6 +8,8 @@
 #include <stdexcept>
 
 #include "Asset.hpp"
+#include "Batch2DGeometry.hpp"
+#include "platform/3ds/Nintendo3DsSpriteGeometry.hpp"
 #include "AssetSerializer.hpp"
 #include "Core.hpp"
 #include "Entity.hpp"
@@ -30,6 +32,7 @@
 #include "int2.hpp"
 #include "CameraClearSettings.hpp"
 #include "platform/3ds/Nintendo3DsRuntimeTexture.hpp"
+#include "platform/3ds/Nintendo3DsTextureRegion.hpp"
 #include "runtime/native_cast.hpp"
 #include "runtime/array.hpp"
 #include "system/io/file.hpp"
@@ -124,6 +127,7 @@ namespace helengine::nintendo3ds {
     Nintendo3DsStartupRenderManager2D::Nintendo3DsStartupRenderManager2D()
         : RenderManager2D()
         , ActiveScreenTarget(Nintendo3DsScreenTarget::Top)
+        , IsRenderingFrame(false)
         , ActiveViewportOffsetX(0)
         , ActiveViewportOffsetY(0)
         , HasTopScreenClearColor(false)
@@ -213,8 +217,33 @@ namespace helengine::nintendo3ds {
             ActiveScreenTarget,
             ActiveViewportOffsetX,
             ActiveViewportOffsetY,
-            sprite
+            sprite,
+            Batch2DGeometry::ResolveSpriteQuad(sprite)
         });
+    }
+
+    /// Updates validated RGBA8 texels in place without rebuilding the texture or modifying neighbouring atlas glyphs.
+    void Nintendo3DsStartupRenderManager2D::UpdateTextureRegionCore(RuntimeTexture* texture, int32_t x, int32_t y,
+        int32_t width, int32_t height, Array<uint8_t>* rgba8, int32_t sourceRowPitch) {
+        Nintendo3DsRuntimeTexture* native = he_cpp_try_cast<Nintendo3DsRuntimeTexture>(texture);
+        if (native == nullptr || native->get_IsDisposed() || !native->HasNativeTexture() || rgba8 == nullptr) {
+            throw std::invalid_argument("Nintendo 3DS texture region requires a live native texture and source array.");
+        }
+        C3D_Tex* gpuTexture = native->GetNativeTexture();
+        if (gpuTexture->fmt != GPU_RGBA8 || gpuTexture->data == nullptr) {
+            throw std::invalid_argument("Nintendo 3DS texture region updates require RGBA8 GPU storage.");
+        }
+        ValidateTextureRegion(native->GetActualWidth(), native->GetActualHeight(), x, y, width, height,
+            rgba8->Data, rgba8->Length, sourceRowPitch);
+        if (IsRenderingFrame) {
+            C2D_Flush();
+            C3D_FrameSplit(C3D_FRAME_SYNCDRAW);
+        } else {
+            C3D_FrameSync();
+        }
+        WriteTextureRegion(static_cast<uint8_t*>(gpuTexture->data), native->GetPaddedWidth(), x, y, width, height,
+            rgba8->Data, sourceRowPitch);
+        C3D_TexFlush(gpuTexture);
     }
 
     /// Captures one text draw request in generated-core render order for later rendering.
@@ -368,6 +397,7 @@ namespace helengine::nintendo3ds {
 
     /// Draws the captured startup-scene 2D content onto the active top-screen citro2d scene.
     void Nintendo3DsStartupRenderManager2D::RenderTopScreen() {
+        IsRenderingFrame = true;
         for (const DrawCommand& command : DrawCommands) {
             if (command.Drawable == nullptr || command.ScreenTarget != Nintendo3DsScreenTarget::Top) {
                 continue;
@@ -378,7 +408,7 @@ namespace helengine::nintendo3ds {
             ActiveViewportOffsetY = command.ViewportOffsetY;
             switch (command.Type) {
                 case DrawCommandType::Sprite:
-                    RenderSprite(static_cast<ISpriteDrawable2D*>(command.Drawable));
+                    RenderSprite(static_cast<ISpriteDrawable2D*>(command.Drawable), command.Geometry);
                     break;
                 case DrawCommandType::Text:
                     RenderText(static_cast<ITextDrawable2D*>(command.Drawable));
@@ -388,10 +418,12 @@ namespace helengine::nintendo3ds {
                     break;
             }
         }
+        IsRenderingFrame = false;
     }
 
     /// Draws the captured startup-scene 2D content onto the active bottom-screen citro2d scene.
     void Nintendo3DsStartupRenderManager2D::RenderBottomScreen() {
+        IsRenderingFrame = true;
         for (const DrawCommand& command : DrawCommands) {
             if (command.Drawable == nullptr || command.ScreenTarget != Nintendo3DsScreenTarget::Bottom) {
                 continue;
@@ -402,7 +434,7 @@ namespace helengine::nintendo3ds {
             ActiveViewportOffsetY = command.ViewportOffsetY;
             switch (command.Type) {
                 case DrawCommandType::Sprite:
-                    RenderSprite(static_cast<ISpriteDrawable2D*>(command.Drawable));
+                    RenderSprite(static_cast<ISpriteDrawable2D*>(command.Drawable), command.Geometry);
                     break;
                 case DrawCommandType::Text:
                     RenderText(static_cast<ITextDrawable2D*>(command.Drawable));
@@ -413,6 +445,7 @@ namespace helengine::nintendo3ds {
             }
         }
 
+        IsRenderingFrame = false;
         if (Nintendo3DsRender2DTraceFramesRemaining > 0) {
             char message[256];
             std::snprintf(
@@ -440,20 +473,6 @@ namespace helengine::nintendo3ds {
     /// Converts one generated-core byte color into the citro2d RGBA layout expected by the Nintendo 3DS GPU.
     u32 Nintendo3DsStartupRenderManager2D::ConvertColor(byte4 color) const {
         return C2D_Color32(color.X, color.Y, color.Z, color.W);
-    }
-
-    /// Resolves one sprite draw size from authored size overrides or runtime texture dimensions.
-    float4 Nintendo3DsStartupRenderManager2D::ResolveSpriteBounds(ISpriteDrawable2D* sprite) const {
-        if (sprite == nullptr || sprite->get_Parent() == nullptr) {
-            throw std::invalid_argument("Nintendo 3DS startup sprite bounds require one drawable with one parent.");
-        }
-
-        int2 size = sprite->get_Size();
-        RuntimeTexture* texture = sprite->get_Texture();
-        float width = size.X > 0 ? static_cast<float>(size.X) : (texture != nullptr ? static_cast<float>(texture->get_Width()) : 0.0f);
-        float height = size.Y > 0 ? static_cast<float>(size.Y) : (texture != nullptr ? static_cast<float>(texture->get_Height()) : 0.0f);
-        float3 position = sprite->get_Parent()->get_Position();
-        return float4(position.X, position.Y, width, height);
     }
 
     /// Resolves one text string using generated-core wrapping rules when authored wrapping is enabled.
@@ -641,20 +660,11 @@ namespace helengine::nintendo3ds {
     }
 
     /// Renders one captured sprite draw request onto the active top-screen citro2d scene.
-    void Nintendo3DsStartupRenderManager2D::RenderSprite(ISpriteDrawable2D* sprite) {
+    void Nintendo3DsStartupRenderManager2D::RenderSprite(ISpriteDrawable2D* sprite, const SpriteQuad2D& quad) {
         if (sprite == nullptr || sprite->get_Parent() == nullptr) {
             AppendRenderTrace("Render2D.RenderSprite: sprite-or-parent-null");
             return;
         }
-
-        float4 bounds = ResolveSpriteBounds(sprite);
-        if (bounds.Z <= 0.0f || bounds.W <= 0.0f) {
-            AppendRenderTrace("Render2D.RenderSprite: empty-bounds");
-            return;
-        }
-
-        float3 scale = sprite->get_Parent()->get_Scale();
-        float4 orientation = sprite->get_Parent()->get_Orientation();
 
         Nintendo3DsRuntimeTexture* runtimeTexture = dynamic_cast<Nintendo3DsRuntimeTexture*>(sprite->get_Texture());
         if (runtimeTexture == nullptr || !runtimeTexture->HasNativeTexture()) {
@@ -687,38 +697,22 @@ namespace helengine::nintendo3ds {
         C2D_PlainImageTint(&tint, ConvertColor(sprite->get_Color()), 1.0f);
         C2D_SetTintMode(C2D_TintMult);
 
-        C2D_DrawParams drawParams;
-        drawParams.pos.w = bounds.Z * scale.X;
-        drawParams.pos.h = bounds.W * scale.Y;
-        drawParams.pos.x = bounds.X + static_cast<float>(ActiveViewportOffsetX) + (drawParams.pos.w * 0.5f);
-        drawParams.pos.y = bounds.Y + static_cast<float>(ActiveViewportOffsetY) + (drawParams.pos.h * 0.5f);
-        drawParams.center.x = drawParams.pos.w * 0.5f;
-        drawParams.center.y = drawParams.pos.h * 0.5f;
-        drawParams.depth = 0.0f;
-        drawParams.angle = std::atan2(
-            2.0 * (static_cast<double>(orientation.W) * static_cast<double>(orientation.Z)
-                + static_cast<double>(orientation.X) * static_cast<double>(orientation.Y)),
-            1.0 - 2.0 * (static_cast<double>(orientation.Y) * static_cast<double>(orientation.Y)
-                + static_cast<double>(orientation.Z) * static_cast<double>(orientation.Z)));
-
-        char spriteTraceMessage[256];
-        std::snprintf(
-            spriteTraceMessage,
-            sizeof(spriteTraceMessage),
-            "Render2D.RenderSprite: pos=(%.1f,%.1f) size=(%.1f,%.1f) scale=(%.2f,%.2f) angle=%.3f texture=%dx%d traceBytes=%u",
-            drawParams.pos.x,
-            drawParams.pos.y,
-            drawParams.pos.w,
-            drawParams.pos.h,
-            scale.X,
-            scale.Y,
-            drawParams.angle,
-            runtimeTexture->GetActualWidth(),
-            runtimeTexture->GetActualHeight(),
-            static_cast<unsigned>(runtimeTexture->GetDebugTraceSummary().size()));
-        AppendDetailedRenderTrace(spriteTraceMessage);
-
-        C2D_DrawImage(image, &drawParams, &tint);
+        C3D_Mtx previousView;
+        C3D_Mtx spriteView;
+        C3D_Mtx combinedView;
+        C2D_ViewSave(&previousView);
+        Nintendo3DsSpriteGeometry::WriteUnitQuadMatrix(spriteView,
+            quad.TopLeft.X, quad.TopLeft.Y, quad.TopRight.X, quad.TopRight.Y,
+            quad.BottomLeft.X, quad.BottomLeft.Y,
+            static_cast<float>(ActiveViewportOffsetX), static_cast<float>(ActiveViewportOffsetY));
+        Mtx_Multiply(&combinedView, &previousView, &spriteView);
+        C2D_ViewRestore(&combinedView);
+        C2D_DrawParams drawParams {};
+        drawParams.pos.w = 1.0f;
+        drawParams.pos.h = 1.0f;
+        const bool drawn = C2D_DrawImage(image, &drawParams, &tint);
+        C2D_ViewRestore(&previousView);
+        if (!drawn) { throw std::runtime_error("Nintendo 3DS sprite image submission failed."); }
     }
 
     /// Renders one captured text draw request onto the active top-screen citro2d scene.
