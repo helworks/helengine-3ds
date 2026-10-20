@@ -101,7 +101,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
             "3ds-default",
             "3ds-bootstrap",
             "3ds-standard-textured",
-            fieldValues));
+            fieldValues, numericPolicy: global::helengine.NumericPrecisionPolicy.Default));
 
         PlatformMaterialAsset cookedAsset = Assert.IsType<PlatformMaterialAsset>(helengine.files.AssetSerializer.DeserializeFromBytes(result.CookedMaterialBytes));
         Assert.Equal("materials/menu.material", cookedAsset.Id);
