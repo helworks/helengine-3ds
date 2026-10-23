@@ -23,7 +23,7 @@ namespace helengine::nintendo3ds {
             }
         }
 
-        void AppendAudioTrace(const std::string& message) {
+        void AppendAudioTrace(const HeCppString& message) {
             std::FILE* file = std::fopen(AudioTracePath, "ab");
             if (file == nullptr) {
                 return;
@@ -195,12 +195,12 @@ namespace helengine::nintendo3ds {
         ReleaseActiveVoice();
     }
 
-    void Nintendo3DsAudioBackend::SetBusGain(std::string busId, float gain) {
+    void Nintendo3DsAudioBackend::SetBusGain(HeCppString busId, float gain) {
         BusGainsById[NormalizeBusId(std::move(busId))] = ClampGain(gain);
         ApplyActiveVoiceState();
     }
 
-    void Nintendo3DsAudioBackend::SetBusPaused(std::string busId, bool paused) {
+    void Nintendo3DsAudioBackend::SetBusPaused(HeCppString busId, bool paused) {
         std::string normalizedBusId = NormalizeBusId(std::move(busId));
         if (paused) {
             PausedBusIds.insert(normalizedBusId);
@@ -447,7 +447,8 @@ namespace helengine::nintendo3ds {
         ResetWaveBuffers();
     }
 
-    std::string Nintendo3DsAudioBackend::NormalizeBusId(std::string busId) {
+    std::string Nintendo3DsAudioBackend::NormalizeBusId(HeCppString managedBusId) {
+        std::string busId(managedBusId.data(), managedBusId.size());
         if (busId.empty()) {
             return "master";
         }
@@ -470,7 +471,7 @@ namespace helengine::nintendo3ds {
         return std::clamp(gain, 0.0f, 1.0f);
     }
 
-    bool Nintendo3DsAudioBackend::UsesPcmEncoding(const std::string& encodingFamilyId) {
+    bool Nintendo3DsAudioBackend::UsesPcmEncoding(const HeCppString& encodingFamilyId) {
         return encodingFamilyId == "pcm-streamed" || encodingFamilyId == "pcm-buffered";
     }
 

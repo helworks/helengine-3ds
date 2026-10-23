@@ -209,7 +209,7 @@ namespace helengine::nintendo3ds {
         /// <param name="message">Mutable message buffer that receives the formatted field.</param>
         /// <param name="label">Stable field label written into the diagnostic output.</param>
         /// <param name="value">Diagnostic value to append when non-empty.</param>
-        void AppendDiagnosticField(std::string& message, const char* label, const std::string& value) {
+        void AppendDiagnosticField(HeCppString& message, const char* label, const HeCppString& value) {
             if (label == nullptr || label[0] == '\0' || value.empty()) {
                 return;
             }
@@ -225,12 +225,12 @@ namespace helengine::nintendo3ds {
         /// <param name="engineCore">Generated-core instance that may expose additional runtime diagnostics.</param>
         /// <returns>Expanded diagnostic message with managed runtime context appended when available.</returns>
         std::string BuildManagedRuntimeDiagnosticMessage(const char* baseMessage, ::Core* engineCore) {
-            std::string message = baseMessage != nullptr ? baseMessage : "Unknown diagnostic message.";
+            HeCppString message = baseMessage != nullptr ? baseMessage : "Unknown diagnostic message.";
             AppendDiagnosticField(message, "binaryAssetPath", ::EngineBinaryReadContext::get_CurrentAssetPath());
             AppendDiagnosticField(message, "binaryReadStage", ::EngineBinaryReadContext::get_CurrentReadStage());
             AppendDiagnosticField(message, "binaryLastCheckpoint", ::EngineBinaryReadContext::get_LastCheckpoint());
             if (engineCore == nullptr) {
-                return message;
+                return std::string(message.data(), message.size());
             }
 
             ::RuntimeSceneLoadService* sceneLoadService = engineCore->get_SceneLoadService();
@@ -253,7 +253,7 @@ namespace helengine::nintendo3ds {
                 AppendDiagnosticField(message, "resolverFontDeserializeStage", referenceResolver->get_LastFontDeserializeStage());
             }
 
-            return message;
+            return std::string(message.data(), message.size());
         }
 
         /// Builds one live scene-trace snapshot that summarizes the current scene-manager state during normal execution.
@@ -264,7 +264,7 @@ namespace helengine::nintendo3ds {
                 return "engineCore=<null>";
             }
 
-            std::string message = "updateStage=" + engineCore->get_LastSceneTransitionStage();
+            HeCppString message = "updateStage=" + engineCore->get_LastSceneTransitionStage();
             ::RuntimeSceneLoadService* sceneLoadService = engineCore->get_SceneLoadService();
             if (sceneLoadService != nullptr) {
                 message += "\nsceneLoadStage=" + sceneLoadService->get_LastTraceStage();
@@ -273,7 +273,7 @@ namespace helengine::nintendo3ds {
             ::SceneManager* sceneManager = engineCore->get_SceneManager();
             if (sceneManager == nullptr) {
                 message += "\nsceneManager=<null>";
-                return message;
+                return std::string(message.data(), message.size());
             }
 
             message += "\nsceneTransitionStage=" + sceneManager->get_LastTraceStage();
@@ -281,10 +281,10 @@ namespace helengine::nintendo3ds {
             message += "\nloadedSceneCount=" + std::to_string(sceneManager->get_LastTraceLoadedSceneCount());
             message += "\npendingSceneOperationCount=" + std::to_string(sceneManager->get_LastTracePendingOperationCount());
 
-            List<std::string>* loadedSceneIds = sceneManager->GetLoadedSceneIds();
+            List<HeCppString>* loadedSceneIds = sceneManager->GetLoadedSceneIds();
             if (loadedSceneIds == nullptr) {
                 message += "\nloadedSceneIds=<null>";
-                return message;
+                return std::string(message.data(), message.size());
             }
 
             message += "\nloadedSceneIds=";
@@ -301,7 +301,7 @@ namespace helengine::nintendo3ds {
             ::ObjectManager* objectManager = engineCore->get_ObjectManager();
             if (objectManager == nullptr) {
                 message += "\nobjectManager=<null>";
-                return message;
+                return std::string(message.data(), message.size());
             }
 
             List<ICamera*>* cameras = objectManager->get_Cameras();
@@ -325,7 +325,7 @@ namespace helengine::nintendo3ds {
             }
 
             if (cameras == nullptr) {
-                return message;
+                return std::string(message.data(), message.size());
             }
 
             for (int32_t cameraIndex = 0; cameraIndex < cameras->get_Count(); cameraIndex++) {
@@ -338,9 +338,9 @@ namespace helengine::nintendo3ds {
                 Entity* cameraOwner = camera->get_Parent();
                 float4 viewport = camera->get_Viewport();
                 IRenderQueue3D* renderQueue3D = camera->get_RenderQueue3D();
-                message += "\ncamera[" + std::to_string(cameraIndex) + "].viewportY=" + std::to_string(viewport.Y);
+                message += "\ncamera[" + std::to_string(cameraIndex) + "].viewportY=" + std::to_string(static_cast<double>(viewport.Y));
                 message += "\ncamera[" + std::to_string(cameraIndex) + "].layerMask=" + std::to_string(camera->get_LayerMask());
-                message += "\ncamera[" + std::to_string(cameraIndex) + "].farPlane=" + std::to_string(camera->get_FarPlaneDistance());
+                message += "\ncamera[" + std::to_string(cameraIndex) + "].farPlane=" + std::to_string(static_cast<double>(camera->get_FarPlaneDistance()));
                 message += "\ncamera[" + std::to_string(cameraIndex) + "].queue3DCount=" + std::to_string(renderQueue3D != nullptr ? renderQueue3D->get_Count() : -1);
                 RenderTarget* renderTarget = camera->get_RenderTarget();
                 message += "\ncamera[" + std::to_string(cameraIndex) + "].targetWidth=" + std::to_string(renderTarget != nullptr ? renderTarget->get_Width() : -1);
@@ -352,17 +352,17 @@ namespace helengine::nintendo3ds {
 
                 float3 localPosition = cameraOwner->get_LocalPosition();
                 message += "\ncamera[" + std::to_string(cameraIndex) + "].localPos=("
-                    + std::to_string(localPosition.X) + ", "
-                    + std::to_string(localPosition.Y) + ", "
-                    + std::to_string(localPosition.Z) + ")";
+                    + std::to_string(static_cast<double>(localPosition.X)) + ", "
+                    + std::to_string(static_cast<double>(localPosition.Y)) + ", "
+                    + std::to_string(static_cast<double>(localPosition.Z)) + ")";
                 float3 worldPosition = cameraOwner->get_Position();
                 message += "\ncamera[" + std::to_string(cameraIndex) + "].worldPos=("
-                    + std::to_string(worldPosition.X) + ", "
-                    + std::to_string(worldPosition.Y) + ", "
-                    + std::to_string(worldPosition.Z) + ")";
+                    + std::to_string(static_cast<double>(worldPosition.X)) + ", "
+                    + std::to_string(static_cast<double>(worldPosition.Y)) + ", "
+                    + std::to_string(static_cast<double>(worldPosition.Z)) + ")";
             }
 
-            return message;
+            return std::string(message.data(), message.size());
         }
 
         /// Persists the live scene trace only when the scene-manager state changes so the SD card log remains readable.
@@ -524,7 +524,7 @@ namespace helengine::nintendo3ds {
                         " completeFrameBoundaryMs=%f renderManager3dMs=%f renderManager3dCalls=%d",
                         EngineCore->get_LastCompleteFrameBoundaryMilliseconds(),
                         EngineCore->get_LastRenderManager3DDrawMilliseconds(),
-                        EngineCore->get_LastRenderManager3DDrawCallCount());
+                        static_cast<int>(EngineCore->get_LastRenderManager3DDrawCallCount()));
                     AppendFrameTraceMarker("Loop.CoreDrawComplete", coreDrawMetrics);
 #if HELENGINE_3DS_RENDER_DIAGNOSTIC_MODE != 3
                     AppendFrameTraceMarker("Loop.Render2DBegin");
@@ -843,7 +843,9 @@ namespace helengine::nintendo3ds {
                 continue;
             }
 
-            return sceneCatalogEntry->get_SceneId();
+            const HeCppString& sceneId = sceneCatalogEntry->get_SceneId();
+            if (sceneId.is_null()) throw std::runtime_error("Nintendo 3DS startup scene id cannot be null.");
+            return std::string(sceneId.data(), sceneId.size());
         }
 
         throw std::runtime_error(std::string("Nintendo 3DS runtime scene catalog did not contain startup scene path '") + cookedRelativePath + std::string("'."));

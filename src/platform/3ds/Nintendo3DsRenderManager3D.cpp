@@ -218,7 +218,7 @@ namespace helengine::nintendo3ds {
                 return;
             }
 
-            List<std::string>* loadedSceneIds = core->get_SceneManager()->GetLoadedSceneIds();
+            List<HeCppString>* loadedSceneIds = core->get_SceneManager()->GetLoadedSceneIds();
             if (loadedSceneIds == nullptr) {
                 return;
             }
@@ -229,7 +229,8 @@ namespace helengine::nintendo3ds {
                     sceneSignature += "|";
                 }
 
-                sceneSignature += (*loadedSceneIds).get_Item(index);
+                const HeCppString& sceneId = (*loadedSceneIds).get_Item(index);
+                sceneSignature.append(sceneId.data(), sceneId.size());
             }
 
             delete loadedSceneIds;
@@ -323,19 +324,20 @@ namespace helengine::nintendo3ds {
                         throw std::out_of_range("Nintendo 3DS model index exceeds the authored position range.");
                     }
 
+                    // Nintendo3DsModelVertex is the fixed float32 GPU attribute layout.
                     Nintendo3DsModelVertex vertex;
-                    vertex.PositionX = (*data->Positions)[sourceIndex].X;
-                    vertex.PositionY = (*data->Positions)[sourceIndex].Y;
-                    vertex.PositionZ = (*data->Positions)[sourceIndex].Z;
+                    vertex.PositionX = static_cast<float>((*data->Positions)[sourceIndex].X);
+                    vertex.PositionY = static_cast<float>((*data->Positions)[sourceIndex].Y);
+                    vertex.PositionZ = static_cast<float>((*data->Positions)[sourceIndex].Z);
                     vertex.TextureCoordinateX = hasTextureCoordinates
-                        ? (*data->TexCoords)[sourceIndex].X
+                        ? static_cast<float>((*data->TexCoords)[sourceIndex].X)
                         : 0.0f;
                     vertex.TextureCoordinateY = hasTextureCoordinates
-                        ? (*data->TexCoords)[sourceIndex].Y
+                        ? static_cast<float>((*data->TexCoords)[sourceIndex].Y)
                         : 0.0f;
-                    vertex.NormalX = (*data->Normals)[sourceIndex].X;
-                    vertex.NormalY = (*data->Normals)[sourceIndex].Y;
-                    vertex.NormalZ = (*data->Normals)[sourceIndex].Z;
+                    vertex.NormalX = static_cast<float>((*data->Normals)[sourceIndex].X);
+                    vertex.NormalY = static_cast<float>((*data->Normals)[sourceIndex].Y);
+                    vertex.NormalZ = static_cast<float>((*data->Normals)[sourceIndex].Z);
                     expandedVertices.push_back(vertex);
                 }
             } else if (hasIndices && indexData->Indices16 != nullptr) {
@@ -345,36 +347,38 @@ namespace helengine::nintendo3ds {
                         throw std::out_of_range("Nintendo 3DS model index exceeds the authored position range.");
                     }
 
+                    // Nintendo3DsModelVertex is the fixed float32 GPU attribute layout.
                     Nintendo3DsModelVertex vertex;
-                    vertex.PositionX = (*data->Positions)[sourceIndex].X;
-                    vertex.PositionY = (*data->Positions)[sourceIndex].Y;
-                    vertex.PositionZ = (*data->Positions)[sourceIndex].Z;
+                    vertex.PositionX = static_cast<float>((*data->Positions)[sourceIndex].X);
+                    vertex.PositionY = static_cast<float>((*data->Positions)[sourceIndex].Y);
+                    vertex.PositionZ = static_cast<float>((*data->Positions)[sourceIndex].Z);
                     vertex.TextureCoordinateX = hasTextureCoordinates
-                        ? (*data->TexCoords)[sourceIndex].X
+                        ? static_cast<float>((*data->TexCoords)[sourceIndex].X)
                         : 0.0f;
                     vertex.TextureCoordinateY = hasTextureCoordinates
-                        ? (*data->TexCoords)[sourceIndex].Y
+                        ? static_cast<float>((*data->TexCoords)[sourceIndex].Y)
                         : 0.0f;
-                    vertex.NormalX = (*data->Normals)[sourceIndex].X;
-                    vertex.NormalY = (*data->Normals)[sourceIndex].Y;
-                    vertex.NormalZ = (*data->Normals)[sourceIndex].Z;
+                    vertex.NormalX = static_cast<float>((*data->Normals)[sourceIndex].X);
+                    vertex.NormalY = static_cast<float>((*data->Normals)[sourceIndex].Y);
+                    vertex.NormalZ = static_cast<float>((*data->Normals)[sourceIndex].Z);
                     expandedVertices.push_back(vertex);
                 }
             } else {
                 for (int32_t index = 0; index < data->Positions->Length; index++) {
+                    // Nintendo3DsModelVertex is the fixed float32 GPU attribute layout.
                     Nintendo3DsModelVertex vertex;
-                    vertex.PositionX = (*data->Positions)[index].X;
-                    vertex.PositionY = (*data->Positions)[index].Y;
-                    vertex.PositionZ = (*data->Positions)[index].Z;
+                    vertex.PositionX = static_cast<float>((*data->Positions)[index].X);
+                    vertex.PositionY = static_cast<float>((*data->Positions)[index].Y);
+                    vertex.PositionZ = static_cast<float>((*data->Positions)[index].Z);
                     vertex.TextureCoordinateX = hasTextureCoordinates
-                        ? (*data->TexCoords)[index].X
+                        ? static_cast<float>((*data->TexCoords)[index].X)
                         : 0.0f;
                     vertex.TextureCoordinateY = hasTextureCoordinates
-                        ? (*data->TexCoords)[index].Y
+                        ? static_cast<float>((*data->TexCoords)[index].Y)
                         : 0.0f;
-                    vertex.NormalX = (*data->Normals)[index].X;
-                    vertex.NormalY = (*data->Normals)[index].Y;
-                    vertex.NormalZ = (*data->Normals)[index].Z;
+                    vertex.NormalX = static_cast<float>((*data->Normals)[index].X);
+                    vertex.NormalY = static_cast<float>((*data->Normals)[index].Y);
+                    vertex.NormalZ = static_cast<float>((*data->Normals)[index].Z);
                     expandedVertices.push_back(vertex);
                 }
             }
@@ -414,7 +418,9 @@ namespace helengine::nintendo3ds {
     }
 
     /// Builds one Nintendo 3DS runtime model for cooked model requests during startup-scene materialization.
-    RuntimeModel* Nintendo3DsRenderManager3D::BuildModelFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) {
+    RuntimeModel* Nintendo3DsRenderManager3D::BuildModelFromCooked(HeCppString managedPath, IContentStreamSource* contentStreamSource) {
+        if (managedPath.is_null()) throw std::invalid_argument("Nintendo 3DS cooked asset path cannot be null.");
+        const std::string cookedAssetPath(managedPath.data(), managedPath.size());
         if (cookedAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS cooked model asset path is required.");
         }
@@ -471,7 +477,8 @@ namespace helengine::nintendo3ds {
             static_cast<float>(materialAsset->BaseColorG) / 255.0f,
             static_cast<float>(materialAsset->BaseColorB) / 255.0f,
             static_cast<float>(materialAsset->BaseColorA) / 255.0f));
-        runtimeMaterial->SetTextureRelativePath(materialAsset->TextureRelativePath);
+        const HeCppString& texturePath = materialAsset->TextureRelativePath;
+        runtimeMaterial->SetTextureRelativePath(std::string(texturePath.data(), texturePath.size()));
         runtimeMaterial->set_SupportsNormalMapping(false);
         runtimeMaterial->set_SupportsEmissive(false);
         runtimeMaterial->set_CastsShadows(materialAsset->Lit);
@@ -480,7 +487,9 @@ namespace helengine::nintendo3ds {
     }
 
     /// Builds one lightweight runtime material from one cooked material asset path.
-    RuntimeMaterial* Nintendo3DsRenderManager3D::BuildMaterialFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) {
+    RuntimeMaterial* Nintendo3DsRenderManager3D::BuildMaterialFromCooked(HeCppString managedPath, IContentStreamSource* contentStreamSource) {
+        if (managedPath.is_null()) throw std::invalid_argument("Nintendo 3DS cooked asset path cannot be null.");
+        const std::string cookedAssetPath(managedPath.data(), managedPath.size());
         if (cookedAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS cooked material asset path is required.");
         }
@@ -525,10 +534,10 @@ namespace helengine::nintendo3ds {
     /// Builds one lightweight runtime material from one raw material asset path.
     RuntimeMaterial* Nintendo3DsRenderManager3D::BuildMaterialFromRawAsset(
         ContentManager* assetContentManager,
-        std::string materialAssetPath) {
+        HeCppString materialAssetPath) {
         if (assetContentManager == nullptr) {
             throw std::invalid_argument("Nintendo 3DS material content manager is required.");
-        } else if (materialAssetPath.empty()) {
+        } else if (materialAssetPath.is_null() || materialAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS material asset path is required.");
         }
 
@@ -594,16 +603,16 @@ namespace helengine::nintendo3ds {
                     static_cast<void*>(camera->get_Parent()),
                     static_cast<void*>(renderQueue),
                     renderQueue != nullptr ? static_cast<int>(renderQueue->get_Count()) : -1,
-                    camera->get_FarPlaneDistance(),
-                    localPosition.X,
-                    localPosition.Y,
-                    localPosition.Z,
+                    static_cast<double>(camera->get_FarPlaneDistance()),
+                    static_cast<double>(localPosition.X),
+                    static_cast<double>(localPosition.Y),
+                    static_cast<double>(localPosition.Z),
                     renderTarget != nullptr ? static_cast<int>(renderTarget->get_Width()) : -1,
                     renderTarget != nullptr ? static_cast<int>(renderTarget->get_Height()) : -1,
-                    camera->get_Viewport().X,
-                    camera->get_Viewport().Y,
-                    camera->get_Viewport().Z,
-                    camera->get_Viewport().W);
+                    static_cast<double>(camera->get_Viewport().X),
+                    static_cast<double>(camera->get_Viewport().Y),
+                    static_cast<double>(camera->get_Viewport().Z),
+                    static_cast<double>(camera->get_Viewport().W));
                 AppendRenderTrace(message);
             }
 
@@ -829,10 +838,11 @@ namespace helengine::nintendo3ds {
         const float4& baseColor) {
         C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, projectionLocation, &projectionMatrix);
         C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, modelViewLocation, &modelViewMatrix);
-        C3D_FVUnifSet(GPU_VERTEX_SHADER, lightVectorLocation, viewSpaceLightVector.X, viewSpaceLightVector.Y, viewSpaceLightVector.Z, 0.0f);
-        C3D_FVUnifSet(GPU_VERTEX_SHADER, lightColorLocation, directionalLightColor.X, directionalLightColor.Y, directionalLightColor.Z, directionalLightColor.W);
-        C3D_FVUnifSet(GPU_VERTEX_SHADER, ambientColorLocation, ambientLightColor.X, ambientLightColor.Y, ambientLightColor.Z, ambientLightColor.W);
-        C3D_FVUnifSet(GPU_VERTEX_SHADER, baseColorLocation, baseColor.X, baseColor.Y, baseColor.Z, baseColor.W);
+        // Citro3D uniforms use fixed float32 values independently of generated engine arithmetic.
+        C3D_FVUnifSet(GPU_VERTEX_SHADER, lightVectorLocation, static_cast<float>(viewSpaceLightVector.X), static_cast<float>(viewSpaceLightVector.Y), static_cast<float>(viewSpaceLightVector.Z), 0.0f);
+        C3D_FVUnifSet(GPU_VERTEX_SHADER, lightColorLocation, static_cast<float>(directionalLightColor.X), static_cast<float>(directionalLightColor.Y), static_cast<float>(directionalLightColor.Z), static_cast<float>(directionalLightColor.W));
+        C3D_FVUnifSet(GPU_VERTEX_SHADER, ambientColorLocation, static_cast<float>(ambientLightColor.X), static_cast<float>(ambientLightColor.Y), static_cast<float>(ambientLightColor.Z), static_cast<float>(ambientLightColor.W));
+        C3D_FVUnifSet(GPU_VERTEX_SHADER, baseColorLocation, static_cast<float>(baseColor.X), static_cast<float>(baseColor.Y), static_cast<float>(baseColor.Z), static_cast<float>(baseColor.W));
     }
 
     /// Releases the shader program and parsed shader binary when the renderer is destroyed.
@@ -889,13 +899,13 @@ namespace helengine::nintendo3ds {
                 message,
                 sizeof(message),
                 "Render3D.CameraTransform: pos=(%.3f,%.3f,%.3f) rot=(%.3f,%.3f,%.3f,%.3f) near=%.3f far=%.3f",
-                cameraState.Position.X,
-                cameraState.Position.Y,
-                cameraState.Position.Z,
-                cameraState.Orientation.X,
-                cameraState.Orientation.Y,
-                cameraState.Orientation.Z,
-                cameraState.Orientation.W,
+                static_cast<double>(cameraState.Position.X),
+                static_cast<double>(cameraState.Position.Y),
+                static_cast<double>(cameraState.Position.Z),
+                static_cast<double>(cameraState.Orientation.X),
+                static_cast<double>(cameraState.Orientation.Y),
+                static_cast<double>(cameraState.Orientation.Z),
+                static_cast<double>(cameraState.Orientation.W),
                 cameraState.NearPlaneDistance,
                 cameraState.FarPlaneDistance);
             AppendTransformRenderTrace(message);
@@ -972,7 +982,7 @@ namespace helengine::nintendo3ds {
             return;
         }
 
-        const std::string cookedTextureAssetPath = ResolvePackagedContentAssetPath(cookedMaterialAssetPath, materialAsset->TextureRelativePath);
+        const std::string cookedTextureAssetPath = ResolvePackagedContentAssetPath(cookedMaterialAssetPath, std::string(materialAsset->TextureRelativePath.data(), materialAsset->TextureRelativePath.size()));
         ::FileStream* textureStream = nullptr;
         ::Asset* textureAssetPayload = nullptr;
         ::TextureAsset* cookedTextureAsset = nullptr;
@@ -1055,16 +1065,16 @@ namespace helengine::nintendo3ds {
                 message,
                 sizeof(message),
                 "Render3D.Transform: entityPos=(%.3f,%.3f,%.3f) scale=(%.3f,%.3f,%.3f) rot=(%.3f,%.3f,%.3f,%.3f)",
-                position.X,
-                position.Y,
-                position.Z,
-                scale.X,
-                scale.Y,
-                scale.Z,
-                orientation.X,
-                orientation.Y,
-                orientation.Z,
-                orientation.W);
+                static_cast<double>(position.X),
+                static_cast<double>(position.Y),
+                static_cast<double>(position.Z),
+                static_cast<double>(scale.X),
+                static_cast<double>(scale.Y),
+                static_cast<double>(scale.Z),
+                static_cast<double>(orientation.X),
+                static_cast<double>(orientation.Y),
+                static_cast<double>(orientation.Z),
+                static_cast<double>(orientation.W));
             AppendTransformRenderTrace(message);
         }
 
@@ -1077,13 +1087,13 @@ namespace helengine::nintendo3ds {
                 message,
                 sizeof(message),
                 "Render3D.ModelViewOrigin: world=(%.3f,%.3f,%.3f) modelView=(%.3f,%.3f,%.3f,%.3f)",
-                world.M41,
-                world.M42,
-                world.M43,
-                modelView.M41,
-                modelView.M42,
-                modelView.M43,
-                modelView.M44);
+                static_cast<double>(world.M41),
+                static_cast<double>(world.M42),
+                static_cast<double>(world.M43),
+                static_cast<double>(modelView.M41),
+                static_cast<double>(modelView.M42),
+                static_cast<double>(modelView.M43),
+                static_cast<double>(modelView.M44));
             AppendTransformRenderTrace(message);
         }
 
@@ -1141,18 +1151,18 @@ namespace helengine::nintendo3ds {
                     sizeof(message),
                     "Render3D.Material: lighting=%d base=(%.3f,%.3f,%.3f,%.3f) dir=(%.3f,%.3f,%.3f,%.3f) ambient=(%.3f,%.3f,%.3f,%.3f)",
                     static_cast<int>(lightingModel),
-                    baseColor.X,
-                    baseColor.Y,
-                    baseColor.Z,
-                    baseColor.W,
-                    directionalLightColor.X,
-                    directionalLightColor.Y,
-                    directionalLightColor.Z,
-                    directionalLightColor.W,
-                    effectiveAmbientColor.X,
-                    effectiveAmbientColor.Y,
-                    effectiveAmbientColor.Z,
-                    effectiveAmbientColor.W);
+                    static_cast<double>(baseColor.X),
+                    static_cast<double>(baseColor.Y),
+                    static_cast<double>(baseColor.Z),
+                    static_cast<double>(baseColor.W),
+                    static_cast<double>(directionalLightColor.X),
+                    static_cast<double>(directionalLightColor.Y),
+                    static_cast<double>(directionalLightColor.Z),
+                    static_cast<double>(directionalLightColor.W),
+                    static_cast<double>(effectiveAmbientColor.X),
+                    static_cast<double>(effectiveAmbientColor.Y),
+                    static_cast<double>(effectiveAmbientColor.Z),
+                    static_cast<double>(effectiveAmbientColor.W));
                 AppendTransformRenderTrace(message);
             }
 
@@ -1246,17 +1256,17 @@ namespace helengine::nintendo3ds {
             throw std::invalid_argument("Nintendo 3DS near-plane resolution requires one camera.");
         }
 
-        const float farPlaneDistance = camera->get_FarPlaneDistance();
-        const float minimumFarPlaneDistance = farPlaneDistance > Nintendo3DsMinimumNearPlaneDistance + Nintendo3DsMinimumPlaneSeparation
+        const RealEvaluation farPlaneDistance = camera->get_FarPlaneDistance();
+        const RealEvaluation minimumFarPlaneDistance = farPlaneDistance > Nintendo3DsMinimumNearPlaneDistance + Nintendo3DsMinimumPlaneSeparation
             ? farPlaneDistance
-            : Nintendo3DsMinimumNearPlaneDistance + Nintendo3DsMinimumPlaneSeparation;
-        const float nearPlaneDistance = camera->get_NearPlaneDistance();
+            : RealEvaluation(Nintendo3DsMinimumNearPlaneDistance + Nintendo3DsMinimumPlaneSeparation);
+        const RealEvaluation nearPlaneDistance = camera->get_NearPlaneDistance();
         if (nearPlaneDistance < Nintendo3DsMinimumNearPlaneDistance) {
             return Nintendo3DsMinimumNearPlaneDistance;
         }
 
-        const float maximumNearPlaneDistance = minimumFarPlaneDistance - Nintendo3DsMinimumPlaneSeparation;
-        return nearPlaneDistance > maximumNearPlaneDistance ? maximumNearPlaneDistance : nearPlaneDistance;
+        const auto maximumNearPlaneDistance = minimumFarPlaneDistance - Nintendo3DsMinimumPlaneSeparation;
+        return static_cast<float>(nearPlaneDistance > maximumNearPlaneDistance ? maximumNearPlaneDistance : nearPlaneDistance);
     }
 
     /// Resolves the current camera far-plane distance using conservative Nintendo 3DS-safe clamps.
@@ -1266,8 +1276,8 @@ namespace helengine::nintendo3ds {
         }
 
         const float minimumFarPlaneDistance = nearPlaneDistance + Nintendo3DsMinimumPlaneSeparation;
-        const float farPlaneDistance = camera->get_FarPlaneDistance();
-        return farPlaneDistance < minimumFarPlaneDistance ? minimumFarPlaneDistance : farPlaneDistance;
+        const RealEvaluation farPlaneDistance = camera->get_FarPlaneDistance();
+        return static_cast<float>(farPlaneDistance < minimumFarPlaneDistance ? RealEvaluation(minimumFarPlaneDistance) : farPlaneDistance);
     }
 
     /// Builds the current camera view matrix from its parent entity transform.
@@ -1316,22 +1326,22 @@ namespace helengine::nintendo3ds {
     /// Converts one HelEngine row-major float4x4 into the transposed citro3d row-vector layout used by `C3D_FVUnifMtx4x4`.
     C3D_Mtx Nintendo3DsRenderManager3D::BuildGpuMatrix(const float4x4& matrix) const {
         C3D_Mtx gpuModelView;
-        gpuModelView.r[0].x = matrix.M11;
-        gpuModelView.r[0].y = matrix.M21;
-        gpuModelView.r[0].z = matrix.M31;
-        gpuModelView.r[0].w = matrix.M41;
-        gpuModelView.r[1].x = matrix.M12;
-        gpuModelView.r[1].y = matrix.M22;
-        gpuModelView.r[1].z = matrix.M32;
-        gpuModelView.r[1].w = matrix.M42;
-        gpuModelView.r[2].x = matrix.M13;
-        gpuModelView.r[2].y = matrix.M23;
-        gpuModelView.r[2].z = matrix.M33;
-        gpuModelView.r[2].w = matrix.M43;
-        gpuModelView.r[3].x = matrix.M14;
-        gpuModelView.r[3].y = matrix.M24;
-        gpuModelView.r[3].z = matrix.M34;
-        gpuModelView.r[3].w = matrix.M44;
+        gpuModelView.r[0].x = static_cast<float>(matrix.M11);
+        gpuModelView.r[0].y = static_cast<float>(matrix.M21);
+        gpuModelView.r[0].z = static_cast<float>(matrix.M31);
+        gpuModelView.r[0].w = static_cast<float>(matrix.M41);
+        gpuModelView.r[1].x = static_cast<float>(matrix.M12);
+        gpuModelView.r[1].y = static_cast<float>(matrix.M22);
+        gpuModelView.r[1].z = static_cast<float>(matrix.M32);
+        gpuModelView.r[1].w = static_cast<float>(matrix.M42);
+        gpuModelView.r[2].x = static_cast<float>(matrix.M13);
+        gpuModelView.r[2].y = static_cast<float>(matrix.M23);
+        gpuModelView.r[2].z = static_cast<float>(matrix.M33);
+        gpuModelView.r[2].w = static_cast<float>(matrix.M43);
+        gpuModelView.r[3].x = static_cast<float>(matrix.M14);
+        gpuModelView.r[3].y = static_cast<float>(matrix.M24);
+        gpuModelView.r[3].z = static_cast<float>(matrix.M34);
+        gpuModelView.r[3].w = static_cast<float>(matrix.M44);
         return gpuModelView;
     }
 

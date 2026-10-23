@@ -23,9 +23,9 @@ namespace helengine::nintendo3ds {
     }
 
     /// Builds one lightweight runtime model for cooked model requests during startup-scene materialization.
-    RuntimeModel* Nintendo3DsStartupRenderManager3D::BuildModelFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) {
+    RuntimeModel* Nintendo3DsStartupRenderManager3D::BuildModelFromCooked(HeCppString cookedAssetPath, IContentStreamSource* contentStreamSource) {
         (void)contentStreamSource;
-        if (cookedAssetPath.empty()) {
+        if (cookedAssetPath.is_null() || cookedAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS cooked model asset path is required.");
         }
 
@@ -45,9 +45,9 @@ namespace helengine::nintendo3ds {
     }
 
     /// Builds one lightweight runtime material from one cooked material asset path.
-    RuntimeMaterial* Nintendo3DsStartupRenderManager3D::BuildMaterialFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) {
+    RuntimeMaterial* Nintendo3DsStartupRenderManager3D::BuildMaterialFromCooked(HeCppString cookedAssetPath, IContentStreamSource* contentStreamSource) {
         (void)contentStreamSource;
-        if (cookedAssetPath.empty()) {
+        if (cookedAssetPath.is_null() || cookedAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS cooked material asset path is required.");
         }
 
@@ -57,10 +57,10 @@ namespace helengine::nintendo3ds {
     /// Builds one lightweight runtime material from one raw material asset path.
     RuntimeMaterial* Nintendo3DsStartupRenderManager3D::BuildMaterialFromRawAsset(
         ContentManager* assetContentManager,
-        std::string materialAssetPath) {
+        HeCppString materialAssetPath) {
         if (assetContentManager == nullptr) {
             throw std::invalid_argument("Nintendo 3DS startup material content manager is required.");
-        } else if (materialAssetPath.empty()) {
+        } else if (materialAssetPath.is_null() || materialAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS startup material asset path is required.");
         }
 

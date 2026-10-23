@@ -34,9 +34,9 @@ namespace helengine::nintendo3ds {
 
         void Stop(int32_t voiceId) override;
 
-        void SetBusGain(std::string busId, float gain) override;
+        void SetBusGain(HeCppString busId, float gain) override;
 
-        void SetBusPaused(std::string busId, bool paused) override;
+        void SetBusPaused(HeCppString busId, bool paused) override;
 
         bool IsPlaying(int32_t voiceId) override;
 
@@ -82,11 +82,11 @@ namespace helengine::nintendo3ds {
 
         void ReleaseWaveBuffers();
 
-        static std::string NormalizeBusId(std::string busId);
+        static std::string NormalizeBusId(HeCppString managedBusId);
 
         static float ClampGain(float gain);
 
-        static bool UsesPcmEncoding(const std::string& encodingFamilyId);
+        static bool UsesPcmEncoding(const HeCppString& encodingFamilyId);
 
         float ResolveCombinedGain(const std::string& busId, float baseGain) const;
 

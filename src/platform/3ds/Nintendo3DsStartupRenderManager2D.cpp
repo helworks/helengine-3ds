@@ -159,7 +159,9 @@ namespace helengine::nintendo3ds {
     }
 
     /// Builds one Nintendo 3DS runtime texture for cooked texture requests during startup-scene materialization.
-    RuntimeTexture* Nintendo3DsStartupRenderManager2D::BuildTextureFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) {
+    RuntimeTexture* Nintendo3DsStartupRenderManager2D::BuildTextureFromCooked(HeCppString managedPath, IContentStreamSource* contentStreamSource) {
+        if (managedPath.is_null()) throw std::invalid_argument("Nintendo 3DS cooked asset path cannot be null.");
+        const std::string cookedAssetPath(managedPath.data(), managedPath.size());
         if (cookedAssetPath.empty()) {
             throw std::invalid_argument("Nintendo 3DS cooked texture asset path is required.");
         }
@@ -328,10 +330,10 @@ namespace helengine::nintendo3ds {
             CameraClearSettings clearSettings = camera->get_ClearSettings();
             if (clearSettings.get_ClearColorEnabled()) {
                 u32 clearColor = C2D_Color32f(
-                    clearSettings.get_ClearColor().X,
-                    clearSettings.get_ClearColor().Y,
-                    clearSettings.get_ClearColor().Z,
-                    clearSettings.get_ClearColor().W);
+                    static_cast<float>(clearSettings.get_ClearColor().X),
+                    static_cast<float>(clearSettings.get_ClearColor().Y),
+                    static_cast<float>(clearSettings.get_ClearColor().Z),
+                    static_cast<float>(clearSettings.get_ClearColor().W));
                 if (screenTarget == Nintendo3DsScreenTarget::Top && !HasTopScreenClearColor) {
                     HasTopScreenClearColor = true;
                     TopScreenClearColor = clearColor;
@@ -481,7 +483,9 @@ namespace helengine::nintendo3ds {
             throw std::invalid_argument("Nintendo 3DS startup text content requires one drawable.");
         }
 
-        std::string content = text->get_Text();
+        const auto managedContent = text->get_Text();
+        if (managedContent.is_null()) throw std::invalid_argument("Nintendo 3DS text content cannot be null.");
+        std::string content(managedContent.data(), managedContent.size());
         if (!text->get_WrapText()) {
             return content;
         }
@@ -491,32 +495,33 @@ namespace helengine::nintendo3ds {
             return content;
         }
 
-        const float scale = ResolveTextScale(text);
-        const int32_t wrapWidth = std::max<int32_t>(1, static_cast<int32_t>(std::lround(static_cast<double>(text->get_Size().X) / scale)));
-        return TextLayoutUtils::WrapText(content, font, wrapWidth);
+        const RealEvaluation scale = ResolveTextScale(text);
+        const int32_t wrapWidth = std::max<int32_t>(1, static_cast<int32_t>(RealMath::Round(RealEvaluation(text->get_Size().X) / scale, MidpointRounding::AwayFromZero)));
+        const auto wrapped = TextLayoutUtils::WrapText(content, font, wrapWidth);
+        return std::string(wrapped.data(), wrapped.size());
     }
 
     /// Resolves one generated-core font scale for Nintendo 3DS text glyph placement.
-    float Nintendo3DsStartupRenderManager2D::ResolveTextScale(ITextDrawable2D* text) const {
+    RealEvaluation Nintendo3DsStartupRenderManager2D::ResolveTextScale(ITextDrawable2D* text) const {
         if (text == nullptr) {
             throw std::invalid_argument("Nintendo 3DS startup text scale requires one drawable.");
         }
 
-        float scale = text->get_FontScale();
+        RealEvaluation scale = text->get_FontScale();
         if (scale <= 0.0f) {
             scale = 1.0f;
         }
 
-        return std::max(0.0001f, scale);
+        return RealMath::Max(0.0001f, scale);
     }
 
     /// Builds one horizontal offset per rendered text line so authored alignment is respected across wrapped and non-wrapped content.
-    std::vector<float> Nintendo3DsStartupRenderManager2D::BuildTextLineOffsets(
+    std::vector<RealEvaluation> Nintendo3DsStartupRenderManager2D::BuildTextLineOffsets(
         ITextDrawable2D* text,
         FontAsset* font,
         const std::string& content,
-        float scale,
-        float textureWidth) const {
+        RealEvaluation scale,
+        RealEvaluation textureWidth) const {
         if (text == nullptr) {
             throw std::invalid_argument("Nintendo 3DS startup text alignment requires one drawable.");
         } else if (font == nullptr) {
@@ -527,12 +532,12 @@ namespace helengine::nintendo3ds {
             throw std::invalid_argument("Nintendo 3DS startup text alignment requires one positive texture width.");
         }
 
-        std::vector<float> lineOffsets;
+        std::vector<RealEvaluation> lineOffsets;
         std::string currentLine;
         currentLine.reserve(content.size());
         for (char character : content) {
             if (character == '\n') {
-                float visibleWidth = MeasureVisibleTextLineWidth(currentLine, font, scale, textureWidth);
+                RealEvaluation visibleWidth = MeasureVisibleTextLineWidth(currentLine, font, scale, textureWidth);
                 lineOffsets.push_back(ResolveAlignedTextOffset(static_cast<int32_t>(text->get_Alignment()), text->get_Size().X, visibleWidth));
                 currentLine.clear();
                 continue;
@@ -541,17 +546,17 @@ namespace helengine::nintendo3ds {
             currentLine.push_back(character);
         }
 
-        float visibleWidth = MeasureVisibleTextLineWidth(currentLine, font, scale, textureWidth);
+        RealEvaluation visibleWidth = MeasureVisibleTextLineWidth(currentLine, font, scale, textureWidth);
         lineOffsets.push_back(ResolveAlignedTextOffset(static_cast<int32_t>(text->get_Alignment()), text->get_Size().X, visibleWidth));
         return lineOffsets;
     }
 
     /// Measures the visible glyph width of one rendered text line.
-    float Nintendo3DsStartupRenderManager2D::MeasureVisibleTextLineWidth(
+    RealEvaluation Nintendo3DsStartupRenderManager2D::MeasureVisibleTextLineWidth(
         const std::string& line,
         FontAsset* font,
-        float scale,
-        float textureWidth) const {
+        RealEvaluation scale,
+        RealEvaluation textureWidth) const {
         if (font == nullptr) {
             throw std::invalid_argument("Nintendo 3DS startup text width measurement requires one font.");
         } else if (scale <= 0.0f) {
@@ -560,15 +565,15 @@ namespace helengine::nintendo3ds {
             throw std::invalid_argument("Nintendo 3DS startup text width measurement requires one positive texture width.");
         }
 
-        float visibleWidth = 0.0f;
-        float offsetX = 0.0f;
-        const float spaceWidth = font->get_FontInfo() != nullptr
-            ? std::max(font->get_FontInfo()->get_SpaceWidth() * scale, 1.0f)
-            : std::max(font->get_LineHeight() * scale * 0.25f, 1.0f);
+        RealEvaluation visibleWidth = 0.0f;
+        RealEvaluation offsetX = 0.0f;
+        const RealEvaluation spaceWidth = font->get_FontInfo() != nullptr
+            ? RealMath::Max(font->get_FontInfo()->get_SpaceWidth() * scale, 1.0f)
+            : RealMath::Max(font->get_LineHeight() * scale * 0.25f, 1.0f);
         for (char character : line) {
             if (character == ' ') {
                 offsetX += spaceWidth;
-                visibleWidth = std::max(visibleWidth, offsetX);
+                visibleWidth = RealMath::Max(visibleWidth, offsetX);
                 continue;
             }
 
@@ -577,8 +582,8 @@ namespace helengine::nintendo3ds {
                 continue;
             }
 
-            const float glyphWidth = std::max(1.0f, glyph.SourceRect.Z * textureWidth * scale);
-            visibleWidth = std::max(visibleWidth, offsetX + glyphWidth);
+            const RealEvaluation glyphWidth = RealMath::Max(1.0f, glyph.SourceRect.Z * textureWidth * scale);
+            visibleWidth = RealMath::Max(visibleWidth, offsetX + glyphWidth);
             offsetX += glyph.AdvanceWidth > 0.0f
                 ? glyph.AdvanceWidth * scale
                 : glyphWidth;
@@ -588,12 +593,12 @@ namespace helengine::nintendo3ds {
     }
 
     /// Resolves the horizontal offset required to place one line according to its authored text alignment.
-    float Nintendo3DsStartupRenderManager2D::ResolveAlignedTextOffset(int32_t alignmentValue, int32_t boxWidth, float visibleWidth) const {
+    RealEvaluation Nintendo3DsStartupRenderManager2D::ResolveAlignedTextOffset(int32_t alignmentValue, int32_t boxWidth, RealEvaluation visibleWidth) const {
         if (boxWidth <= 0 || visibleWidth <= 0.0f) {
             return 0.0f;
         }
 
-        const float availableWidth = static_cast<float>(boxWidth) - visibleWidth;
+        const RealEvaluation availableWidth = RealEvaluation(boxWidth) - visibleWidth;
         if (availableWidth <= 0.0f) {
             return 0.0f;
         }
@@ -641,10 +646,10 @@ namespace helengine::nintendo3ds {
         int32_t& viewportY,
         int32_t& viewportWidth,
         int32_t& viewportHeight) const {
-        viewportX = static_cast<int32_t>(std::round(viewport.X));
-        int32_t resolvedViewportY = static_cast<int32_t>(std::round(viewport.Y));
-        viewportWidth = std::max(static_cast<int32_t>(0), static_cast<int32_t>(std::round(viewport.Z)));
-        viewportHeight = std::max(static_cast<int32_t>(0), static_cast<int32_t>(std::round(viewport.W)));
+        viewportX = static_cast<int32_t>(::RealMath::Round(viewport.X, ::MidpointRounding::AwayFromZero));
+        int32_t resolvedViewportY = static_cast<int32_t>(::RealMath::Round(viewport.Y, ::MidpointRounding::AwayFromZero));
+        viewportWidth = std::max(static_cast<int32_t>(0), static_cast<int32_t>(::RealMath::Round(viewport.Z, ::MidpointRounding::AwayFromZero)));
+        viewportHeight = std::max(static_cast<int32_t>(0), static_cast<int32_t>(::RealMath::Round(viewport.W, ::MidpointRounding::AwayFromZero)));
         screenTarget = resolvedViewportY >= Nintendo3DsTopScreenHeight
             ? Nintendo3DsScreenTarget::Bottom
             : Nintendo3DsScreenTarget::Top;
@@ -682,12 +687,12 @@ namespace helengine::nintendo3ds {
         float normalizedWidth = static_cast<float>(runtimeTexture->GetActualWidth()) / static_cast<float>(runtimeTexture->GetPaddedWidth());
         float normalizedHeight = static_cast<float>(runtimeTexture->GetActualHeight()) / static_cast<float>(runtimeTexture->GetPaddedHeight());
         Tex3DS_SubTexture subTexture;
-        subTexture.width = static_cast<uint16_t>(std::max<int32_t>(1, static_cast<int32_t>(std::lround(sourceRect.Z * runtimeTexture->GetActualWidth()))));
-        subTexture.height = static_cast<uint16_t>(std::max<int32_t>(1, static_cast<int32_t>(std::lround(sourceRect.W * runtimeTexture->GetActualHeight()))));
-        subTexture.left = sourceRect.X * normalizedWidth;
-        subTexture.right = subTexture.left + (sourceRect.Z * normalizedWidth);
-        subTexture.top = 1.0f - (sourceRect.Y * normalizedHeight);
-        subTexture.bottom = subTexture.top - (sourceRect.W * normalizedHeight);
+        subTexture.width = static_cast<uint16_t>(std::max<int32_t>(1, static_cast<int32_t>(::RealMath::Round(sourceRect.Z * runtimeTexture->GetActualWidth(), ::MidpointRounding::AwayFromZero))));
+        subTexture.height = static_cast<uint16_t>(std::max<int32_t>(1, static_cast<int32_t>(::RealMath::Round(sourceRect.W * runtimeTexture->GetActualHeight(), ::MidpointRounding::AwayFromZero))));
+        subTexture.left = static_cast<float>(sourceRect.X * normalizedWidth);
+        subTexture.right = static_cast<float>(subTexture.left + (sourceRect.Z * normalizedWidth));
+        subTexture.top = static_cast<float>(1.0f - (sourceRect.Y * normalizedHeight));
+        subTexture.bottom = static_cast<float>(subTexture.top - (sourceRect.W * normalizedHeight));
 
         C2D_Image image;
         image.tex = runtimeTexture->GetNativeTexture();
@@ -702,8 +707,8 @@ namespace helengine::nintendo3ds {
         C3D_Mtx combinedView;
         C2D_ViewSave(&previousView);
         Nintendo3DsSpriteGeometry::WriteUnitQuadMatrix(spriteView,
-            quad.TopLeft.X, quad.TopLeft.Y, quad.TopRight.X, quad.TopRight.Y,
-            quad.BottomLeft.X, quad.BottomLeft.Y,
+            static_cast<float>(quad.TopLeft.X), static_cast<float>(quad.TopLeft.Y), static_cast<float>(quad.TopRight.X), static_cast<float>(quad.TopRight.Y),
+            static_cast<float>(quad.BottomLeft.X), static_cast<float>(quad.BottomLeft.Y),
             static_cast<float>(ActiveViewportOffsetX), static_cast<float>(ActiveViewportOffsetY));
         Mtx_Multiply(&combinedView, &previousView, &spriteView);
         C2D_ViewRestore(&combinedView);
@@ -747,32 +752,32 @@ namespace helengine::nintendo3ds {
         }
 
         float3 position = text->get_Parent()->get_Position();
-        const float scale = ResolveTextScale(text);
-        const float textureWidth = static_cast<float>(runtimeTexture->GetActualWidth());
-        const float textureHeight = static_cast<float>(runtimeTexture->GetActualHeight());
+        const RealEvaluation scale = ResolveTextScale(text);
+        const RealEvaluation textureWidth = runtimeTexture->GetActualWidth();
+        const RealEvaluation textureHeight = runtimeTexture->GetActualHeight();
         if (textureWidth <= 0.0f || textureHeight <= 0.0f) {
             AppendRenderTrace("Render2D.RenderText: invalid-font-texture-size");
             return;
         }
 
-        const float lineHeight = std::max(font->get_LineHeight() * scale, 1.0f);
-        const float spaceWidth = font->get_FontInfo() != nullptr
-            ? std::max(font->get_FontInfo()->get_SpaceWidth() * scale, 1.0f)
-            : std::max(lineHeight * 0.25f, 1.0f);
-        std::vector<float> lineOffsets = BuildTextLineOffsets(text, font, content, scale, textureWidth);
-        float renderOriginX = position.X + static_cast<float>(ActiveViewportOffsetX);
-        float offsetX = 0.0f;
-        float offsetY = 0.0f;
+        const RealEvaluation lineHeight = ::RealMath::Max(font->get_LineHeight() * scale, 1.0f);
+        const RealEvaluation spaceWidth = font->get_FontInfo() != nullptr
+            ? ::RealMath::Max(font->get_FontInfo()->get_SpaceWidth() * scale, 1.0f)
+            : ::RealMath::Max(lineHeight * 0.25f, 1.0f);
+        std::vector<RealEvaluation> lineOffsets = BuildTextLineOffsets(text, font, content, scale, textureWidth);
+        RealEvaluation renderOriginX = position.X + ActiveViewportOffsetX;
+        RealEvaluation offsetX = 0.0f;
+        RealEvaluation offsetY = 0.0f;
         size_t lineIndex = 0;
-        float lineOriginX = renderOriginX + (!lineOffsets.empty() ? lineOffsets[0] : 0.0f);
+        RealEvaluation lineOriginX = renderOriginX + (!lineOffsets.empty() ? lineOffsets[0] : RealEvaluation(0.0f));
         char textTraceMessage[256];
         std::snprintf(
             textTraceMessage,
             sizeof(textTraceMessage),
             "Render2D.RenderText: pos=(%.1f,%.1f) scale=%.2f contentLength=%u traceBytes=%u",
-            renderOriginX,
-            position.Y + static_cast<float>(ActiveViewportOffsetY),
-            scale,
+            static_cast<double>(renderOriginX),
+            static_cast<double>(position.Y + ActiveViewportOffsetY),
+            static_cast<double>(scale),
             static_cast<unsigned>(content.size()),
             static_cast<unsigned>(runtimeTexture->GetDebugTraceSummary().size()));
         AppendDetailedRenderTrace(textTraceMessage);
@@ -789,7 +794,7 @@ namespace helengine::nintendo3ds {
                 offsetY += lineHeight;
                 offsetX = 0.0f;
                 lineIndex++;
-                lineOriginX = renderOriginX + (lineIndex < lineOffsets.size() ? lineOffsets[lineIndex] : 0.0f);
+                lineOriginX = renderOriginX + (lineIndex < lineOffsets.size() ? lineOffsets[lineIndex] : RealEvaluation(0.0f));
                 continue;
             }
 
@@ -806,12 +811,12 @@ namespace helengine::nintendo3ds {
 
             float4 sourceRect = glyph.SourceRect;
             Tex3DS_SubTexture subTexture;
-            subTexture.width = static_cast<uint16_t>(std::max(1.0f, std::round(sourceRect.Z * textureWidth)));
-            subTexture.height = static_cast<uint16_t>(std::max(1.0f, std::round(sourceRect.W * textureHeight)));
-            subTexture.left = sourceRect.X * (textureWidth / static_cast<float>(runtimeTexture->GetPaddedWidth()));
-            subTexture.right = subTexture.left + (sourceRect.Z * (textureWidth / static_cast<float>(runtimeTexture->GetPaddedWidth())));
-            subTexture.top = 1.0f - (sourceRect.Y * (textureHeight / static_cast<float>(runtimeTexture->GetPaddedHeight())));
-            subTexture.bottom = subTexture.top - (sourceRect.W * (textureHeight / static_cast<float>(runtimeTexture->GetPaddedHeight())));
+            subTexture.width = static_cast<uint16_t>(static_cast<int32_t>(::RealMath::Max(1.0f, ::RealMath::Round(sourceRect.Z * textureWidth, ::MidpointRounding::AwayFromZero))));
+            subTexture.height = static_cast<uint16_t>(static_cast<int32_t>(::RealMath::Max(1.0f, ::RealMath::Round(sourceRect.W * textureHeight, ::MidpointRounding::AwayFromZero))));
+            subTexture.left = static_cast<float>(sourceRect.X * (textureWidth / static_cast<float>(runtimeTexture->GetPaddedWidth())));
+            subTexture.right = static_cast<float>(subTexture.left + (sourceRect.Z * (textureWidth / static_cast<float>(runtimeTexture->GetPaddedWidth()))));
+            subTexture.top = static_cast<float>(1.0f - (sourceRect.Y * (textureHeight / static_cast<float>(runtimeTexture->GetPaddedHeight()))));
+            subTexture.bottom = static_cast<float>(subTexture.top - (sourceRect.W * (textureHeight / static_cast<float>(runtimeTexture->GetPaddedHeight()))));
 
             C2D_Image image;
             image.tex = runtimeTexture->GetNativeTexture();
@@ -821,10 +826,10 @@ namespace helengine::nintendo3ds {
             C2D_PlainImageTint(&tint, ConvertColor(text->get_Color()), 1.0f);
 
             C2D_DrawParams drawParams;
-            drawParams.pos.x = lineOriginX + offsetX;
-            drawParams.pos.y = position.Y + static_cast<float>(ActiveViewportOffsetY) + offsetY + (glyph.OffsetY * scale);
-            drawParams.pos.w = std::max(1.0f, sourceRect.Z * textureWidth * scale);
-            drawParams.pos.h = std::max(1.0f, sourceRect.W * textureHeight * scale);
+            drawParams.pos.x = static_cast<float>(lineOriginX + offsetX);
+            drawParams.pos.y = static_cast<float>(position.Y + ActiveViewportOffsetY + offsetY + (glyph.OffsetY * scale));
+            drawParams.pos.w = static_cast<float>(::RealMath::Max(1.0f, sourceRect.Z * textureWidth * scale));
+            drawParams.pos.h = static_cast<float>(::RealMath::Max(1.0f, sourceRect.W * textureHeight * scale));
             drawParams.center.x = 0.0f;
             drawParams.center.y = 0.0f;
             drawParams.depth = 0.0f;
@@ -844,7 +849,7 @@ namespace helengine::nintendo3ds {
 
             offsetX += glyph.AdvanceWidth > 0.0f
                 ? glyph.AdvanceWidth * scale
-                : drawParams.pos.w;
+                : RealEvaluation(drawParams.pos.w);
         }
 
         if (hasFirstGlyphTrace) {
@@ -854,18 +859,18 @@ namespace helengine::nintendo3ds {
                 sizeof(glyphTraceMessage),
                 "Render2D.RenderTextGlyphs: first='%c' src=(%.4f,%.4f,%.4f,%.4f) dst=(%.1f,%.1f,%.1f,%.1f) sub=(%.4f,%.4f,%.4f,%.4f) drawn=%d missing=%d",
                 firstGlyphCharacter,
-                firstGlyphSourceRect.X,
-                firstGlyphSourceRect.Y,
-                firstGlyphSourceRect.Z,
-                firstGlyphSourceRect.W,
-                firstGlyphDrawBounds.X,
-                firstGlyphDrawBounds.Y,
-                firstGlyphDrawBounds.Z,
-                firstGlyphDrawBounds.W,
-                firstGlyphSubTextureBounds.X,
-                firstGlyphSubTextureBounds.Y,
-                firstGlyphSubTextureBounds.Z,
-                firstGlyphSubTextureBounds.W,
+                static_cast<double>(firstGlyphSourceRect.X),
+                static_cast<double>(firstGlyphSourceRect.Y),
+                static_cast<double>(firstGlyphSourceRect.Z),
+                static_cast<double>(firstGlyphSourceRect.W),
+                static_cast<double>(firstGlyphDrawBounds.X),
+                static_cast<double>(firstGlyphDrawBounds.Y),
+                static_cast<double>(firstGlyphDrawBounds.Z),
+                static_cast<double>(firstGlyphDrawBounds.W),
+                static_cast<double>(firstGlyphSubTextureBounds.X),
+                static_cast<double>(firstGlyphSubTextureBounds.Y),
+                static_cast<double>(firstGlyphSubTextureBounds.Z),
+                static_cast<double>(firstGlyphSubTextureBounds.W),
                 static_cast<int>(drawnGlyphCount),
                 static_cast<int>(missingGlyphCount));
             AppendDetailedRenderTrace(glyphTraceMessage);
@@ -894,8 +899,8 @@ namespace helengine::nintendo3ds {
 
         u32 resolvedFillColor = ConvertColor(shape->get_FillColor());
         C2D_DrawRectSolid(
-            position.X + static_cast<float>(ActiveViewportOffsetX),
-            position.Y + static_cast<float>(ActiveViewportOffsetY),
+            static_cast<float>(position.X + ActiveViewportOffsetX),
+            static_cast<float>(position.Y + ActiveViewportOffsetY),
             0.0f,
             static_cast<float>(size.X),
             static_cast<float>(size.Y),
@@ -905,12 +910,12 @@ namespace helengine::nintendo3ds {
             return;
         }
 
-        const float borderThickness = std::max(1.0f, static_cast<float>(std::lround(shape->get_BorderThickness())));
+        const float borderThickness = static_cast<float>(::RealMath::Max(1.0f, ::RealMath::Round(shape->get_BorderThickness(), ::MidpointRounding::AwayFromZero)));
         const float width = static_cast<float>(size.X);
         const float height = static_cast<float>(size.Y);
         const u32 borderColor = ConvertColor(shape->get_BorderColor());
-        float viewportOriginX = position.X + static_cast<float>(ActiveViewportOffsetX);
-        float viewportOriginY = position.Y + static_cast<float>(ActiveViewportOffsetY);
+        float viewportOriginX = static_cast<float>(position.X + ActiveViewportOffsetX);
+        float viewportOriginY = static_cast<float>(position.Y + ActiveViewportOffsetY);
         char roundedRectTraceMessage[256];
         std::snprintf(
             roundedRectTraceMessage,

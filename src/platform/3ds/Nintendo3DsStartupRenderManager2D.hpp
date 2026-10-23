@@ -34,7 +34,7 @@ namespace helengine::nintendo3ds {
         /// Builds one Nintendo 3DS runtime texture for cooked texture requests during startup-scene materialization.
         /// <param name="cookedAssetPath">Cooked texture asset path requested by the runtime scene loader.</param>
         /// <returns>Uploaded Nintendo 3DS runtime texture.</returns>
-        RuntimeTexture* BuildTextureFromCooked(std::string cookedAssetPath, IContentStreamSource* contentStreamSource) override;
+        RuntimeTexture* BuildTextureFromCooked(HeCppString cookedAssetPath, IContentStreamSource* contentStreamSource) override;
 
         /// Uploads an RGBA8 subregion into a live RGBA8 PICA texture after validating storage and waiting for previous readers.
         void UpdateTextureRegionCore(RuntimeTexture* texture, int32_t x, int32_t y, int32_t width, int32_t height,
@@ -128,7 +128,7 @@ namespace helengine::nintendo3ds {
         std::string ResolveTextContent(ITextDrawable2D* text) const;
 
         /// Resolves one generated-core font scale for Nintendo 3DS text glyph placement.
-        float ResolveTextScale(ITextDrawable2D* text) const;
+        RealEvaluation ResolveTextScale(ITextDrawable2D* text) const;
 
         /// Builds one horizontal offset per rendered text line so authored alignment is respected across wrapped and non-wrapped content.
         /// <param name="text">Text drawable that owns the authored layout box.</param>
@@ -137,7 +137,7 @@ namespace helengine::nintendo3ds {
         /// <param name="scale">Resolved glyph scale.</param>
         /// <param name="textureWidth">Font-atlas texture width used to resolve normalized glyph bounds.</param>
         /// <returns>One horizontal offset per rendered line.</returns>
-        std::vector<float> BuildTextLineOffsets(ITextDrawable2D* text, FontAsset* font, const std::string& content, float scale, float textureWidth) const;
+        std::vector<RealEvaluation> BuildTextLineOffsets(ITextDrawable2D* text, FontAsset* font, const std::string& content, RealEvaluation scale, RealEvaluation textureWidth) const;
 
         /// Measures the visible glyph width of one rendered text line.
         /// <param name="line">Single rendered line to measure.</param>
@@ -145,14 +145,14 @@ namespace helengine::nintendo3ds {
         /// <param name="scale">Resolved glyph scale.</param>
         /// <param name="textureWidth">Font-atlas texture width used to resolve normalized glyph bounds.</param>
         /// <returns>Visible line width in pixels.</returns>
-        float MeasureVisibleTextLineWidth(const std::string& line, FontAsset* font, float scale, float textureWidth) const;
+        RealEvaluation MeasureVisibleTextLineWidth(const std::string& line, FontAsset* font, RealEvaluation scale, RealEvaluation textureWidth) const;
 
         /// Resolves the horizontal offset required to place one line according to its authored text alignment.
         /// <param name="alignmentValue">Horizontal alignment requested by the text drawable, encoded as its generated enum backing value.</param>
         /// <param name="boxWidth">Authored layout width available to the line.</param>
         /// <param name="visibleWidth">Measured visible glyph width of the line.</param>
         /// <returns>Horizontal offset that should be added before drawing the line.</returns>
-        float ResolveAlignedTextOffset(int32_t alignmentValue, int32_t boxWidth, float visibleWidth) const;
+        RealEvaluation ResolveAlignedTextOffset(int32_t alignmentValue, int32_t boxWidth, RealEvaluation visibleWidth) const;
 
         /// Resolves one authored camera viewport into Nintendo 3DS pixel-space bounds.
         /// <param name="camera">Runtime camera providing the authored viewport.</param>
