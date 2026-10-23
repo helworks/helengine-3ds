@@ -83,8 +83,12 @@ public class Nintendo3DsPlatformAssetBuilderTests {
     /// <summary>
     /// Verifies the Nintendo 3DS builder cooks one standard textured material into the generic platform-owned runtime payload.
     /// </summary>
-    [Fact]
-    public void CookMaterial_whenUsingStandardTexturedSchema_returnsPlatformMaterialAsset() {
+    /// <param name="storageBits">Target numeric policy width validated by the packaged runtime reader.</param>
+    [Theory]
+    [InlineData(32)]
+    [InlineData(64)]
+    public void CookMaterial_whenUsingStandardTexturedSchema_returnsPlatformMaterialAsset(int storageBits) {
+        global::helengine.NumericPrecisionPolicy numericPolicy = new(storageBits, storageBits);
         Nintendo3DsPlatformAssetBuilder builder = new();
         Dictionary<string, string> fieldValues = new(StringComparer.Ordinal) {
             ["texture-relative-path"] = "cooked/imported/menu-logo.hasset",
@@ -101,9 +105,9 @@ public class Nintendo3DsPlatformAssetBuilderTests {
             "3ds-default",
             "3ds-bootstrap",
             "3ds-standard-textured",
-            fieldValues, numericPolicy: global::helengine.NumericPrecisionPolicy.Default));
+            fieldValues, numericPolicy: numericPolicy));
 
-        PlatformMaterialAsset cookedAsset = Assert.IsType<PlatformMaterialAsset>(helengine.files.AssetSerializer.DeserializeFromBytes(result.CookedMaterialBytes));
+        PlatformMaterialAsset cookedAsset = Assert.IsType<PlatformMaterialAsset>(helengine.PackagedAssetBinarySerializer.Deserialize(new MemoryStream(result.CookedMaterialBytes), numericPolicy));
         Assert.Equal("materials/menu.material", cookedAsset.Id);
         Assert.Equal("3ds-bootstrap", cookedAsset.RendererFamilyId);
         Assert.Equal("cooked/imported/menu-logo.hasset", cookedAsset.TextureRelativePath);
@@ -320,10 +324,14 @@ public class Nintendo3DsPlatformAssetBuilderTests {
     /// <summary>
     /// Verifies builder-owned 3DS texture cook work items are executed into the package source root before RomFS staging.
     /// </summary>
-    [Fact]
-    public async Task BuildAsync_whenTextureCookWorkItemIsPresent_cooksAndStagesTexturePayload() {
+    /// <param name="storageBits">Target numeric policy width encoded in the staged texture container.</param>
+    [Theory]
+    [InlineData(32)]
+    [InlineData(64)]
+    public async Task BuildAsync_whenTextureCookWorkItemIsPresent_cooksAndStagesTexturePayload(int storageBits) {
+        global::helengine.NumericPrecisionPolicy numericPolicy = new(storageBits, storageBits);
         string repositoryRoot = "/mnt/c/dev/helworks/helengine-3ds";
-        string workingRoot = Path.Combine(Path.GetTempPath(), "helengine-3ds-build-" + Guid.NewGuid().ToString("N"));
+        string workingRoot = Path.Combine(Path.GetTempPath(), "helengine-3ds-build");
         string outputRoot = Path.Combine(workingRoot, "out");
         string builderWorkingRoot = Path.Combine(workingRoot, "tmp");
         string packageRoot = Nintendo3DsBuildPathConventions.ResolvePackageSourceRootPath(builderWorkingRoot);
@@ -418,7 +426,10 @@ public class Nintendo3DsPlatformAssetBuilderTests {
                     ["startup-bottom-screen-color"] = "#0000FF"
                 },
                 selectedGraphicsOptionValues: new Dictionary<string, string>(),
-                selectedCodegenOptionValues: new Dictionary<string, string>(),
+                selectedCodegenOptionValues: new Dictionary<string, string> {
+                    [PlatformCodegenSettingIds.RealStorageBits] = storageBits.ToString(),
+                    [PlatformCodegenSettingIds.RealArithmeticBits] = storageBits.ToString()
+                },
                 generatedCoreCppRootPath: generatedCoreRoot,
                 selectedMediaProfileId: "3dsx-homebrew",
                 selectedStorageProfileId: "romfs-package");
@@ -431,7 +442,7 @@ public class Nintendo3DsPlatformAssetBuilderTests {
 
             string stagedTexturePath = Path.Combine(nativeBuildExecutor.Workspace.RomFsRootPath, "cooked", "imported", "menu-logo.hasset");
             Assert.True(File.Exists(stagedTexturePath));
-            TextureAsset cookedTexture = Assert.IsType<TextureAsset>(helengine.files.AssetSerializer.DeserializeFromBytes(File.ReadAllBytes(stagedTexturePath)));
+            TextureAsset cookedTexture = Assert.IsType<TextureAsset>(helengine.PackagedAssetBinarySerializer.Deserialize(new MemoryStream(File.ReadAllBytes(stagedTexturePath)), numericPolicy));
             Assert.Equal("menu-logo", cookedTexture.Id);
             Assert.Equal((ushort)2, cookedTexture.Width);
             Assert.Equal((ushort)1, cookedTexture.Height);
